@@ -5,6 +5,7 @@ import { errorMiddleware, notFoundMiddleware } from './middleware/error-middlewa
 import { requestLogger } from './middleware/request-logger.js';
 import { projectRoutes } from './routes/project-routes.js';
 import { authRoutes } from './routes/auth-routes.js';
+import { reportRoutes } from './routes/report-routes.js';
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.get('/health', (_req, res) => {
 
 app.use('/projects', projectRoutes);
 app.use('/auth', authRoutes);
+app.use(reportRoutes);
 
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);
