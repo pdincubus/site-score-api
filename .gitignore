@@ -34,3 +34,7 @@ Thumbs.db
 
 # TypeScript
 *.tsbuildinfo
+
+cookies.txt
+*.cookie
+*.cookies
