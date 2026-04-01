@@ -2,7 +2,7 @@
 
 A small full stack TypeScript API for managing website projects, audit reports, and user accounts.
 
-It was built as a practical learning and portfolio project to strengthen back end and full stack skills using a realistic structure, PostgreSQL persistence, authentication, ownership rules, runtime validation, and integration tests.
+It was built as a practical learning and portfolio project to strengthen back end and full stack skills using a realistic structure, PostgreSQL persistence, authentication, ownership rules, runtime validation, database migrations, and integration tests.
 
 ## Features
 
@@ -58,12 +58,14 @@ src/
     errors/
     middleware/
     routes/
+    scripts/
     services/
     test/
     types/
     validation/
 
 sql/
+    migrations/
 ```
 
 ### Structure overview
@@ -73,7 +75,8 @@ sql/
 - `middleware` handles shared request behaviour
 - `validation` contains Zod request schemas
 - `test` contains DB cleanup and reusable test helpers
-- `sql` contains the base schema
+- `scripts` contains utility scripts such as the migration runner
+- `sql/migrations` contains ordered SQL migration files
 
 ## Environment variables
 
@@ -114,11 +117,11 @@ createdb site_score_api
 createdb site_score_api_test
 ```
 
-### 3. Run the schema
+### 3. Run migrations
 
 ```bash
-psql site_score_api -f sql/init.sql
-psql site_score_api_test -f sql/init.sql
+npm run migrate
+npm run migrate:test
 ```
 
 ### 4. Start the dev server
@@ -141,6 +144,8 @@ npm run build
 npm run start
 npm test
 npm run test:watch
+npm run migrate
+npm run migrate:test
 ```
 
 ## API overview
@@ -330,17 +335,21 @@ Response:
 
 ## Validation
 
-Request body validation is currently handled in two ways:
+Request body validation is currently handled in two ways.
 
 ### Zod
-Zod is used for auth request body validation:
-- register payloads
-- login payloads
+Zod is used for:
+- auth register payloads
+- auth login payloads
+- project create payloads
+- project update payloads
+- report create payloads
+- report update payloads
 
-### Manual controller validation
-Project and report routes still use manual validation in controllers.
+### Database constraints
+PostgreSQL also enforces report score ranges with `CHECK` constraints so scores must remain between `0` and `100`.
 
-This is a good candidate for future cleanup so validation rules are handled more consistently across the app.
+This gives you validation at both the app layer and the database layer.
 
 ## Database notes
 
@@ -357,12 +366,29 @@ The app uses PostgreSQL for:
 - a report belongs to one project
 - a session belongs to one user
 
-### Data integrity
-The database also protects report score ranges with `CHECK` constraints so scores must remain between `0` and `100`.
+## Migrations
+
+Database schema changes are managed with ordered SQL migration files in:
+
+```txt
+sql/migrations/
+```
+
+Migrations are tracked in the `schema_migrations` table and applied with:
+
+```bash
+npm run migrate
+npm run migrate:test
+```
+
+Current migrations include:
+- `001_initial_schema.sql`
+- `002_add_project_user_id.sql`
+- `003_add_report_score_checks.sql`
 
 ## Cookie configuration
 
-The session cookie is environment-aware:
+The session cookie is environment-aware.
 
 ### Development
 - `httpOnly: true`
@@ -410,17 +436,13 @@ npm run test:watch
 ### Register
 
 ```bash
-curl -i -X POST http://localhost:3000/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Phil","email":"phil@example.com","password":"secret123"}'
+curl -i -X POST http://localhost:3000/auth/register   -H "Content-Type: application/json"   -d '{"name":"Phil","email":"phil@example.com","password":"secret123"}'
 ```
 
 ### Login and save cookies
 
 ```bash
-curl -i -c cookies.txt -X POST http://localhost:3000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"phil@example.com","password":"secret123"}'
+curl -i -c cookies.txt -X POST http://localhost:3000/auth/login   -H "Content-Type: application/json"   -d '{"email":"phil@example.com","password":"secret123"}'
 ```
 
 ### Get current user with saved cookies
@@ -432,17 +454,13 @@ curl -i -b cookies.txt http://localhost:3000/auth/me
 ### Create a project with saved cookies
 
 ```bash
-curl -i -b cookies.txt -X POST http://localhost:3000/projects \
-  -H "Content-Type: application/json" \
-  -d '{"name":"My project","url":"https://example.com"}'
+curl -i -b cookies.txt -X POST http://localhost:3000/projects   -H "Content-Type: application/json"   -d '{"name":"My project","url":"https://example.com"}'
 ```
 
 ### Create a report with saved cookies
 
 ```bash
-curl -i -b cookies.txt -X POST http://localhost:3000/projects/<project-id>/reports \
-  -H "Content-Type: application/json" \
-  -d '{
+curl -i -b cookies.txt -X POST http://localhost:3000/projects/<project-id>/reports   -H "Content-Type: application/json"   -d '{
     "title":"Homepage audit",
     "summary":"Initial report for homepage checks",
     "accessibilityScore":85,
@@ -463,6 +481,7 @@ This project currently demonstrates:
 - integration testing
 - runtime request validation with Zod
 - database-level constraints for report score ranges
+- ordered SQL migrations with a simple migration runner
 
 ## What I learned
 
@@ -473,18 +492,18 @@ Building this project helped strengthen practical back end and full stack skills
 - ownership and authorisation rules
 - runtime validation with Zod
 - integration testing with Vitest and Supertest
+- database migrations and schema evolution
 - keeping a project structured enough to grow beyond toy examples
 
 ## Possible next improvements
 
-- migrate project and report request validation to Zod
-- add database migrations
-- add OpenAPI or Swagger documentation
 - deploy to Vercel with a hosted PostgreSQL database
+- add OpenAPI or Swagger documentation
 - add pagination and filtering
 - add sorting and search
 - add a small front end or admin UI
 - refactor repeated validation and mapping further
+- add richer report querying and dashboards
 
 ## Why this project exists
 

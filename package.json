@@ -8,7 +8,9 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "NODE_ENV=test vitest run",
-    "test:watch": "NODE_ENV=test vitest"
+    "test:watch": "NODE_ENV=test vitest",
+    "migrate": "tsx src/scripts/run-migrations.ts",
+      "migrate:test": "NODE_ENV=test tsx src/scripts/run-migrations.ts"
   },
   "keywords": [],
   "author": "",
