@@ -6,6 +6,7 @@ import type { Project } from '../types/project.js';
 type CreateProjectInput = {
     name: string;
     url: string;
+    userId: string;
 };
 
 type ProjectRow = {
@@ -13,6 +14,7 @@ type ProjectRow = {
     name: string;
     url: string;
     created_at: Date;
+    user_id: string;
 };
 
 type UpdateProjectInput = {
@@ -32,7 +34,7 @@ function mapProjectRow(row: ProjectRow): Project {
 async function getAllProjects(): Promise<Project[]> {
     const result = await pool.query<ProjectRow>(
         `
-            SELECT id, name, url, created_at
+            SELECT id, name, url, created_at, user_id
             FROM projects
             ORDER BY created_at DESC
         `
@@ -44,7 +46,7 @@ async function getAllProjects(): Promise<Project[]> {
 async function getProjectById(id: string): Promise<Project | undefined> {
     const result = await pool.query<ProjectRow>(
         `
-            SELECT id, name, url, created_at
+            SELECT id, name, url, created_at, user_id
             FROM projects
             WHERE id = $1
             LIMIT 1
@@ -83,11 +85,11 @@ async function createNewProject(input: CreateProjectInput): Promise<Project> {
 
     const result = await pool.query<ProjectRow>(
         `
-            INSERT INTO projects (id, name, url)
-            VALUES ($1, $2, $3)
-            RETURNING id, name, url, created_at
+            INSERT INTO projects (id, name, url, user_id)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id, name, url, created_at, user_id
         `,
-        [id, trimmedName, trimmedUrl]
+        [id, trimmedName, trimmedUrl, input.userId]
     );
 
     return mapProjectRow(result.rows[0]);
@@ -108,7 +110,7 @@ async function deleteProjectById(id: string): Promise<boolean> {
 async function updateProjectById(id: string, input: UpdateProjectInput): Promise<Project | undefined> {
     const existingResult = await pool.query<ProjectRow>(
         `
-            SELECT id, name, url, created_at
+            SELECT id, name, url, created_at, user_id
             FROM projects
             WHERE id = $1
             LIMIT 1
@@ -148,7 +150,7 @@ async function updateProjectById(id: string, input: UpdateProjectInput): Promise
             SET name = $1,
                 url = $2
             WHERE id = $3
-            RETURNING id, name, url, created_at
+            RETURNING id, name, url, created_at, user_id
         `,
         [nextName, nextUrl, id]
     );
@@ -156,4 +158,18 @@ async function updateProjectById(id: string, input: UpdateProjectInput): Promise
     return mapProjectRow(result.rows[0]);
 }
 
-export { getAllProjects, getProjectById, createNewProject, deleteProjectById, updateProjectById };
+async function getProjectOwnerId(id: string): Promise<string | undefined> {
+    const result = await pool.query<{ user_id: string }>(
+        `
+            SELECT user_id
+            FROM projects
+            WHERE id = $1
+            LIMIT 1
+        `,
+        [id]
+    );
+
+    return result.rows[0]?.user_id;
+}
+
+export { getAllProjects, getProjectById, createNewProject, deleteProjectById, updateProjectById, getProjectOwnerId };

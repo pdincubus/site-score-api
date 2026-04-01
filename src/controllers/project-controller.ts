@@ -6,6 +6,7 @@ import {
     deleteProjectById,
     getAllProjects,
     getProjectById as getProjectByIdFromService,
+    getProjectOwnerId,
     updateProjectById
 } from '../services/project-service.js';
 
@@ -26,27 +27,23 @@ async function getProjectById(req: Request, res: Response) {
     res.status(200).json(project);
 }
 
-async function createProject(req: Request, res: Response) {
-    const { name, url } = req.body;
-
-    if (typeof name !== 'string' || name.trim() === '') {
-        throw new AppError('Name is required', 400);
-    }
-
-    if (typeof url !== 'string' || url.trim() === '') {
-        throw new AppError('URL is required', 400);
-    }
-
-    const newProject = await createNewProject({
-        name,
-        url
-    });
-
-    res.status(201).json(newProject);
-}
-
 async function deleteProject(req: Request, res: Response) {
     const { id } = req.params;
+
+    if (!req.currentUser) {
+        throw new AppError('Not authenticated', 401);
+    }
+
+    const ownerId = await getProjectOwnerId(id);
+
+    if (!ownerId) {
+        throw new AppError('Project not found', 404);
+    }
+
+    if (ownerId !== req.currentUser.id) {
+        throw new AppError('Forbidden', 403);
+    }
+
     const wasDeleted = await deleteProjectById(id);
 
     if (!wasDeleted) {
@@ -60,6 +57,10 @@ async function updateProject(req: Request, res: Response) {
     const { id } = req.params;
     const { name, url } = req.body;
 
+    if (!req.currentUser) {
+        throw new AppError('Not authenticated', 401);
+    }
+
     if (name === undefined && url === undefined) {
         throw new AppError('At least one of name or URL is required', 400);
     }
@@ -70,6 +71,16 @@ async function updateProject(req: Request, res: Response) {
 
     if (url !== undefined && (typeof url !== 'string' || url.trim() === '')) {
         throw new AppError('URL must be a non-empty string', 400);
+    }
+
+    const ownerId = await getProjectOwnerId(id);
+
+    if (!ownerId) {
+        throw new AppError('Project not found', 404);
+    }
+
+    if (ownerId !== req.currentUser.id) {
+        throw new AppError('Forbidden', 403);
     }
 
     const updatedProject = await updateProjectById(id, {
@@ -84,4 +95,28 @@ async function updateProject(req: Request, res: Response) {
     res.status(200).json(updatedProject);
 }
 
-export { getProjects, getProjectById, createProject, deleteProject, updateProject };
+async function createProject(req: Request, res: Response) {
+    const { name, url } = req.body;
+
+    if (!req.currentUser) {
+        throw new AppError('Not authenticated', 401);
+    }
+
+    if (typeof name !== 'string' || name.trim() === '') {
+        throw new AppError('Name is required', 400);
+    }
+
+    if (typeof url !== 'string' || url.trim() === '') {
+        throw new AppError('URL is required', 400);
+    }
+
+    const newProject = await createNewProject({
+        name,
+        url,
+        userId: req.currentUser.id
+    });
+
+    res.status(201).json(newProject);
+}
+
+export { getProjects, getProjectById, createProject, deleteProject, updateProject, createProject as createProjectForUser };
