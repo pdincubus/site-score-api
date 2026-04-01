@@ -26,9 +26,9 @@ CREATE TABLE IF NOT EXISTS reports (
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     summary TEXT NOT NULL,
-    accessibility_score INTEGER NOT NULL,
-    performance_score INTEGER NOT NULL,
-    seo_score INTEGER NOT NULL,
-    ux_score INTEGER NOT NULL,
+    accessibility_score INTEGER NOT NULL CHECK (accessibility_score BETWEEN 0 AND 100),
+    performance_score INTEGER NOT NULL CHECK (performance_score BETWEEN 0 AND 100),
+    seo_score INTEGER NOT NULL CHECK (seo_score BETWEEN 0 AND 100),
+    ux_score INTEGER NOT NULL CHECK (ux_score BETWEEN 0 AND 100),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

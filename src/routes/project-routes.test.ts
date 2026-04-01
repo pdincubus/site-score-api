@@ -1,39 +1,12 @@
 import request from 'supertest';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../app.js';
-import { pool } from '../db/database.js';
 import { clearTables } from '../test/test-db.js';
-
-async function registerAndLoginAs(
-    name: string,
-    email: string,
-    password = 'secret123'
-) {
-    await request(app)
-        .post('/auth/register')
-        .send({
-            name,
-            email,
-            password
-        });
-
-    const loginResponse = await request(app)
-        .post('/auth/login')
-        .send({
-            email,
-            password
-        });
-
-    return loginResponse.headers['set-cookie'];
-}
+import { createProject, registerAndLoginAs } from '../test/test-helpers.js';
 
 describe('Project routes', () => {
     beforeEach(async () => {
         await clearTables();
-    });
-
-    afterAll(async () => {
-        await pool.end();
     });
 
     it('returns an empty array when there are no projects', async () => {
@@ -58,15 +31,16 @@ describe('Project routes', () => {
     });
 
     it('creates a project when authenticated', async () => {
-        const cookie = await registerAndLoginAs('Phil', 'phil@example.com');
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
 
-        const response = await request(app)
-            .post('/projects')
-            .set('Cookie', cookie)
-            .send({
-                name: 'Test project',
-                url: 'https://example.com'
-            });
+        const response = await createProject({
+            cookie,
+            name: 'Test project',
+            url: 'https://example.com'
+        });
 
         expect(response.status).toBe(201);
         expect(response.body.name).toBe('Test project');
@@ -75,23 +49,22 @@ describe('Project routes', () => {
     });
 
     it('rejects a duplicate project URL when authenticated', async () => {
-        const cookie = await registerAndLoginAs('Phil', 'phil@example.com');
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
 
-        await request(app)
-            .post('/projects')
-            .set('Cookie', cookie)
-            .send({
-                name: 'First project',
-                url: 'https://example.com'
-            });
+        await createProject({
+            cookie,
+            name: 'First project',
+            url: 'https://example.com'
+        });
 
-        const response = await request(app)
-            .post('/projects')
-            .set('Cookie', cookie)
-            .send({
-                name: 'Second project',
-                url: 'https://example.com'
-            });
+        const response = await createProject({
+            cookie,
+            name: 'Second project',
+            url: 'https://example.com'
+        });
 
         expect(response.status).toBe(409);
         expect(response.body).toEqual({
@@ -100,7 +73,10 @@ describe('Project routes', () => {
     });
 
     it('rejects project creation with no name when authenticated', async () => {
-        const cookie = await registerAndLoginAs('Phil', 'phil@example.com');
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
 
         const response = await request(app)
             .post('/projects')
@@ -116,15 +92,16 @@ describe('Project routes', () => {
     });
 
     it('gets a project by id', async () => {
-        const cookie = await registerAndLoginAs('Phil', 'phil@example.com');
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
 
-        const createResponse = await request(app)
-            .post('/projects')
-            .set('Cookie', cookie)
-            .send({
-                name: 'Find me',
-                url: 'https://find-me.com'
-            });
+        const createResponse = await createProject({
+            cookie,
+            name: 'Find me',
+            url: 'https://find-me.com'
+        });
 
         const projectId = createResponse.body.id;
 
@@ -160,15 +137,16 @@ describe('Project routes', () => {
     });
 
     it('updates a project name when authenticated', async () => {
-        const cookie = await registerAndLoginAs('Phil', 'phil@example.com');
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
 
-        const createResponse = await request(app)
-            .post('/projects')
-            .set('Cookie', cookie)
-            .send({
-                name: 'Old name',
-                url: 'https://old-name.com'
-            });
+        const createResponse = await createProject({
+            cookie,
+            name: 'Old name',
+            url: 'https://old-name.com'
+        });
 
         const projectId = createResponse.body.id;
 
@@ -196,15 +174,16 @@ describe('Project routes', () => {
     });
 
     it('deletes a project when authenticated', async () => {
-        const cookie = await registerAndLoginAs('Phil', 'phil@example.com');
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
 
-        const createResponse = await request(app)
-            .post('/projects')
-            .set('Cookie', cookie)
-            .send({
-                name: 'Delete me',
-                url: 'https://delete-me.com'
-            });
+        const createResponse = await createProject({
+            cookie,
+            name: 'Delete me',
+            url: 'https://delete-me.com'
+        });
 
         const projectId = createResponse.body.id;
 
@@ -219,7 +198,10 @@ describe('Project routes', () => {
     });
 
     it('returns 404 when deleting a missing project while authenticated', async () => {
-        const cookie = await registerAndLoginAs('Phil', 'phil@example.com');
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
 
         const response = await request(app)
             .delete('/projects/22222222-2222-2222-2222-222222222222')
@@ -232,27 +214,31 @@ describe('Project routes', () => {
     });
 
     it('rejects project update by a different authenticated user', async () => {
-        const ownerCookie = await registerAndLoginAs('Owner', 'owner@example.com');
-    
-        const createResponse = await request(app)
-            .post('/projects')
-            .set('Cookie', ownerCookie)
-            .send({
-                name: 'Owner project',
-                url: 'https://owner-project.com'
-            });
-    
+        const ownerCookie = await registerAndLoginAs({
+            name: 'Owner',
+            email: 'owner@example.com'
+        });
+
+        const createResponse = await createProject({
+            cookie: ownerCookie,
+            name: 'Owner project',
+            url: 'https://owner-project.com'
+        });
+
         const projectId = createResponse.body.id;
-    
-        const otherUserCookie = await registerAndLoginAs('Other user', 'other@example.com');
-    
+
+        const otherUserCookie = await registerAndLoginAs({
+            name: 'Other user',
+            email: 'other@example.com'
+        });
+
         const response = await request(app)
             .patch(`/projects/${projectId}`)
             .set('Cookie', otherUserCookie)
             .send({
                 name: 'Hacked name'
             });
-    
+
         expect(response.status).toBe(403);
         expect(response.body).toEqual({
             error: 'Forbidden'
@@ -260,24 +246,28 @@ describe('Project routes', () => {
     });
 
     it('rejects project deletion by a different authenticated user', async () => {
-        const ownerCookie = await registerAndLoginAs('Owner', 'owner@example.com');
-    
-        const createResponse = await request(app)
-            .post('/projects')
-            .set('Cookie', ownerCookie)
-            .send({
-                name: 'Owner project',
-                url: 'https://owner-delete-project.com'
-            });
-    
+        const ownerCookie = await registerAndLoginAs({
+            name: 'Owner',
+            email: 'owner@example.com'
+        });
+
+        const createResponse = await createProject({
+            cookie: ownerCookie,
+            name: 'Owner project',
+            url: 'https://owner-delete-project.com'
+        });
+
         const projectId = createResponse.body.id;
-    
-        const otherUserCookie = await registerAndLoginAs('Other user', 'other@example.com');
-    
+
+        const otherUserCookie = await registerAndLoginAs({
+            name: 'Other user',
+            email: 'other@example.com'
+        });
+
         const response = await request(app)
             .delete(`/projects/${projectId}`)
             .set('Cookie', otherUserCookie);
-    
+
         expect(response.status).toBe(403);
         expect(response.body).toEqual({
             error: 'Forbidden'

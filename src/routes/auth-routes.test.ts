@@ -1,26 +1,8 @@
-import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { app } from '../app.js';
 import { clearTables } from '../test/test-db.js';
-
-async function registerAndLogin() {
-    await request(app)
-        .post('/auth/register')
-        .send({
-            name: 'Phil',
-            email: 'phil@example.com',
-            password: 'secret123'
-        });
-
-    const loginResponse = await request(app)
-        .post('/auth/login')
-        .send({
-            email: 'phil@example.com',
-            password: 'secret123'
-        });
-
-    return loginResponse.headers['set-cookie'];
-}
+import { loginUser, registerAndLoginAs, registerUser } from '../test/test-helpers.js';
+import request from 'supertest';
+import { app } from '../app.js';
 
 describe('Auth routes', () => {
     beforeEach(async () => {
@@ -28,13 +10,10 @@ describe('Auth routes', () => {
     });
 
     it('registers a user', async () => {
-        const response = await request(app)
-            .post('/auth/register')
-            .send({
-                name: 'Phil',
-                email: 'phil@example.com',
-                password: 'secret123'
-            });
+        const response = await registerUser({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
 
         expect(response.status).toBe(201);
         expect(response.body.name).toBe('Phil');
@@ -44,21 +23,15 @@ describe('Auth routes', () => {
     });
 
     it('rejects duplicate email registration', async () => {
-        await request(app)
-            .post('/auth/register')
-            .send({
-                name: 'Phil',
-                email: 'phil@example.com',
-                password: 'secret123'
-            });
+        await registerUser({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
 
-        const response = await request(app)
-            .post('/auth/register')
-            .send({
-                name: 'Phil again',
-                email: 'phil@example.com',
-                password: 'secret123'
-            });
+        const response = await registerUser({
+            name: 'Phil again',
+            email: 'phil@example.com'
+        });
 
         expect(response.status).toBe(409);
         expect(response.body).toEqual({
@@ -109,20 +82,14 @@ describe('Auth routes', () => {
     });
 
     it('logs in a registered user', async () => {
-        await request(app)
-            .post('/auth/register')
-            .send({
-                name: 'Phil',
-                email: 'phil@example.com',
-                password: 'secret123'
-            });
+        await registerUser({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
 
-        const response = await request(app)
-            .post('/auth/login')
-            .send({
-                email: 'phil@example.com',
-                password: 'secret123'
-            });
+        const response = await loginUser({
+            email: 'phil@example.com'
+        });
 
         expect(response.status).toBe(200);
         expect(response.body.name).toBe('Phil');
@@ -131,20 +98,15 @@ describe('Auth routes', () => {
     });
 
     it('rejects login with wrong password', async () => {
-        await request(app)
-            .post('/auth/register')
-            .send({
-                name: 'Phil',
-                email: 'phil@example.com',
-                password: 'secret123'
-            });
+        await registerUser({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
 
-        const response = await request(app)
-            .post('/auth/login')
-            .send({
-                email: 'phil@example.com',
-                password: 'wrong-password'
-            });
+        const response = await loginUser({
+            email: 'phil@example.com',
+            password: 'wrong-password'
+        });
 
         expect(response.status).toBe(401);
         expect(response.body).toEqual({
@@ -153,12 +115,9 @@ describe('Auth routes', () => {
     });
 
     it('rejects login for unknown email', async () => {
-        const response = await request(app)
-            .post('/auth/login')
-            .send({
-                email: 'nobody@example.com',
-                password: 'secret123'
-            });
+        const response = await loginUser({
+            email: 'nobody@example.com'
+        });
 
         expect(response.status).toBe(401);
         expect(response.body).toEqual({
@@ -193,7 +152,10 @@ describe('Auth routes', () => {
     });
 
     it('returns the current user when authenticated', async () => {
-        const cookie = await registerAndLogin();
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
 
         const response = await request(app)
             .get('/auth/me')
@@ -214,7 +176,10 @@ describe('Auth routes', () => {
     });
 
     it('logs out an authenticated user', async () => {
-        const cookie = await registerAndLogin();
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
 
         const logoutResponse = await request(app)
             .post('/auth/logout')
@@ -224,7 +189,10 @@ describe('Auth routes', () => {
     });
 
     it('rejects current user lookup after logout', async () => {
-        const cookie = await registerAndLogin();
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
 
         await request(app)
             .post('/auth/logout')

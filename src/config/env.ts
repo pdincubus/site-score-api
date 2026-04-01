@@ -19,6 +19,7 @@ if (!sessionSecret) {
 const env = {
     port: Number.isNaN(port) ? 3000 : port,
     nodeEnv,
+    isProduction: nodeEnv === 'production',
     databaseUrl,
     databaseTestUrl: databaseTestUrl || '',
     sessionSecret

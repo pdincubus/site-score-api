@@ -1,5 +1,7 @@
 import type { Request, Response } from 'express';
 import { AppError } from '../errors/app-error.js';
+import { ZodError } from 'zod';
+import { createProjectSchema, updateProjectSchema } from '../validation/project-schemas.js';
 
 import {
     createNewProject,
@@ -55,68 +57,65 @@ async function deleteProject(req: Request, res: Response) {
 
 async function updateProject(req: Request, res: Response) {
     const { id } = req.params;
-    const { name, url } = req.body;
 
     if (!req.currentUser) {
         throw new AppError('Not authenticated', 401);
     }
 
-    if (name === undefined && url === undefined) {
-        throw new AppError('At least one of name or URL is required', 400);
+    try {
+        const { name, url } = updateProjectSchema.parse(req.body);
+
+        const ownerId = await getProjectOwnerId(id);
+
+        if (!ownerId) {
+            throw new AppError('Project not found', 404);
+        }
+
+        if (ownerId !== req.currentUser.id) {
+            throw new AppError('Forbidden', 403);
+        }
+
+        const updatedProject = await updateProjectById(id, {
+            name,
+            url
+        });
+
+        if (!updatedProject) {
+            throw new AppError('Project not found', 404);
+        }
+
+        res.status(200).json(updatedProject);
+    } catch (error) {
+        if (error instanceof ZodError) {
+            throw new AppError(error.issues[0]?.message || 'Invalid request body', 400);
+        }
+
+        throw error;
     }
-
-    if (name !== undefined && (typeof name !== 'string' || name.trim() === '')) {
-        throw new AppError('Name must be a non-empty string', 400);
-    }
-
-    if (url !== undefined && (typeof url !== 'string' || url.trim() === '')) {
-        throw new AppError('URL must be a non-empty string', 400);
-    }
-
-    const ownerId = await getProjectOwnerId(id);
-
-    if (!ownerId) {
-        throw new AppError('Project not found', 404);
-    }
-
-    if (ownerId !== req.currentUser.id) {
-        throw new AppError('Forbidden', 403);
-    }
-
-    const updatedProject = await updateProjectById(id, {
-        name,
-        url
-    });
-
-    if (!updatedProject) {
-        throw new AppError('Project not found', 404);
-    }
-
-    res.status(200).json(updatedProject);
 }
 
 async function createProject(req: Request, res: Response) {
-    const { name, url } = req.body;
-
     if (!req.currentUser) {
         throw new AppError('Not authenticated', 401);
     }
 
-    if (typeof name !== 'string' || name.trim() === '') {
-        throw new AppError('Name is required', 400);
+    try {
+        const { name, url } = createProjectSchema.parse(req.body);
+
+        const newProject = await createNewProject({
+            name,
+            url,
+            userId: req.currentUser.id
+        });
+
+        res.status(201).json(newProject);
+    } catch (error) {
+        if (error instanceof ZodError) {
+            throw new AppError(error.issues[0]?.message || 'Invalid request body', 400);
+        }
+
+        throw error;
     }
-
-    if (typeof url !== 'string' || url.trim() === '') {
-        throw new AppError('URL is required', 400);
-    }
-
-    const newProject = await createNewProject({
-        name,
-        url,
-        userId: req.currentUser.id
-    });
-
-    res.status(201).json(newProject);
 }
 
 export { getProjects, getProjectById, createProject, deleteProject, updateProject, createProject as createProjectForUser };
