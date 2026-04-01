@@ -6,15 +6,15 @@ import {
     getProjectById as getProjectByIdFromService
 } from '../services/project-service.js';
 
-function getProjects(_req: Request, res: Response) {
-    const allProjects = getAllProjects();
+async function getProjects(_req: Request, res: Response) {
+    const allProjects = await getAllProjects();
 
     res.status(200).json(allProjects);
 }
 
-function getProjectById(req: Request, res: Response) {
+async function getProjectById(req: Request, res: Response) {
     const { id } = req.params;
-    const project = getProjectByIdFromService(id);
+    const project = await getProjectByIdFromService(id);
 
     if (!project) {
         throw new AppError('Project not found', 404);
@@ -23,7 +23,7 @@ function getProjectById(req: Request, res: Response) {
     res.status(200).json(project);
 }
 
-function createProject(req: Request, res: Response) {
+async function createProject(req: Request, res: Response) {
     const { name, url } = req.body;
 
     if (typeof name !== 'string' || name.trim() === '') {
@@ -34,7 +34,7 @@ function createProject(req: Request, res: Response) {
         throw new AppError('URL is required', 400);
     }
 
-    const newProject = createNewProject({
+    const newProject = await createNewProject({
         name,
         url
     });
