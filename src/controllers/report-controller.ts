@@ -2,7 +2,6 @@ import type { Request, Response } from 'express';
 import { ZodError } from 'zod';
 import { AppError } from '../errors/app-error.js';
 import { getProjectOwnerId } from '../services/project-service.js';
-
 import {
     createNewReport,
     deleteReportById,
@@ -11,8 +10,7 @@ import {
     getReportProjectOwnerId,
     updateReportById
 } from '../services/report-service.js';
-
-import { getPaginationQuery } from '../utils/pagination.js';
+import { getReportListQuery } from '../utils/pagination.js';
 import { createReportSchema, updateReportSchema } from '../validation/report-schemas.js';
 
 function getSingleParam(value: string | string[]): string {
@@ -21,8 +19,8 @@ function getSingleParam(value: string | string[]): string {
 
 async function getProjectReports(req: Request, res: Response) {
     const projectId = getSingleParam(req.params.id);
-    const { page, limit, offset } = getPaginationQuery(req.query as Record<string, unknown>);
-    const reports = await getPaginatedReportsByProjectId(projectId, page, limit, offset);
+    const query = getReportListQuery(req.query as Record<string, unknown>);
+    const reports = await getPaginatedReportsByProjectId(projectId, query);
 
     res.status(200).json(reports);
 }

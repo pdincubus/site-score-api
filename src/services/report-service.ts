@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
 import { pool } from '../db/database.js';
-import { AppError } from '../errors/app-error.js';
-import type { Report } from '../types/report.js';
 import type { PaginatedResponse } from '../types/pagination.js';
+import type { Report } from '../types/report.js';
+import type { ReportListQuery } from '../utils/pagination.js';
 
 type ReportRow = {
     id: string;
@@ -51,39 +51,65 @@ function mapReportRow(row: ReportRow): Report {
 
 async function getPaginatedReportsByProjectId(
     projectId: string,
-    page: number,
-    limit: number,
-    offset: number
+    query: ReportListQuery
 ): Promise<PaginatedResponse<Report>> {
+    const sortColumn = query.sort === 'title' ? 'title' : 'created_at';
+    const sortOrder = query.order === 'asc' ? 'ASC' : 'DESC';
+    const searchTerm = query.search.trim();
+
+    const whereClause =
+        searchTerm === ''
+            ? `
+                WHERE project_id = $1
+            `
+            : `
+                WHERE project_id = $1
+                  AND (
+                    title ILIKE $2
+                    OR summary ILIKE $2
+                  )
+            `;
+
+    const totalParams =
+        searchTerm === ''
+            ? [projectId]
+            : [projectId, `%${searchTerm}%`];
+
     const totalResult = await pool.query<{ count: string }>(
         `
             SELECT COUNT(*) AS count
             FROM reports
-            WHERE project_id = $1
+            ${whereClause}
         `,
-        [projectId]
+        totalParams
     );
 
     const total = Number(totalResult.rows[0]?.count ?? 0);
+
+    const dataParams =
+        searchTerm === ''
+            ? [projectId, query.limit, query.offset]
+            : [projectId, `%${searchTerm}%`, query.limit, query.offset];
 
     const result = await pool.query<ReportRow>(
         `
             SELECT id, project_id, title, summary, accessibility_score, performance_score, seo_score, ux_score, created_at
             FROM reports
-            WHERE project_id = $1
-            ORDER BY created_at DESC
-            LIMIT $2 OFFSET $3
+            ${whereClause}
+            ORDER BY ${sortColumn} ${sortOrder}
+            LIMIT $${searchTerm === '' ? 2 : 3}
+            OFFSET $${searchTerm === '' ? 3 : 4}
         `,
-        [projectId, limit, offset]
+        dataParams
     );
 
     return {
         data: result.rows.map(mapReportRow),
         pagination: {
-            page,
-            limit,
+            page: query.page,
+            limit: query.limit,
             total,
-            totalPages: total === 0 ? 0 : Math.ceil(total / limit)
+            totalPages: total === 0 ? 0 : Math.ceil(total / query.limit)
         }
     };
 }
@@ -235,10 +261,10 @@ async function deleteReportById(id: string): Promise<boolean> {
 export {
     createNewReport,
     deleteReportById,
+    getPaginatedReportsByProjectId,
     getReportById,
     getReportProjectOwnerId,
     getReportsByProjectId,
     mapReportRow,
-    updateReportById,
-    getPaginatedReportsByProjectId
+    updateReportById
 };

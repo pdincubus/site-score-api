@@ -36,41 +36,30 @@ const reportRoutes = Router();
  *         schema:
  *           type: integer
  *           example: 10
- *     responses:
- *       200:
- *         description: Paginated list of reports for a project
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Report'
- *                 pagination:
- *                   type: object
- *                   properties:
- *                     page:
- *                       type: integer
- *                       example: 1
- *                     limit:
- *                       type: integer
- *                       example: 10
- *                     total:
- *                       type: integer
- *                       example: 12
- *                     totalPages:
- *                       type: integer
- *                       example: 2
- *                   required:
- *                     - page
- *                     - limit
- *                     - total
- *                     - totalPages
- *               required:
- *                 - data
- *                 - pagination
+ *       - in: query
+ *         name: search
+ *         required: false
+ *         schema:
+ *           type: string
+ *           example: homepage
+ *       - in: query
+ *         name: sort
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - createdAt
+ *             - title
+ *           example: createdAt
+ *       - in: query
+ *         name: order
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - asc
+ *             - desc
+ *           example: desc
  */
 reportRoutes.get('/projects/:id/reports', asyncHandler(getProjectReports));
 

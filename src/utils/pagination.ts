@@ -10,6 +10,12 @@ type ProjectListQuery = PaginationQuery & {
     order: 'asc' | 'desc';
 };
 
+type ReportListQuery = PaginationQuery & {
+    search: string;
+    sort: 'createdAt' | 'title';
+    order: 'asc' | 'desc';
+};
+
 function parsePositiveInteger(value: unknown, fallback: number): number {
     if (typeof value !== 'string') {
         return fallback;
@@ -67,5 +73,31 @@ function getProjectListQuery(query: Record<string, unknown>): ProjectListQuery {
     };
 }
 
-export { getPaginationQuery, getProjectListQuery };
-export type { PaginationQuery, ProjectListQuery };
+function getReportListQuery(query: Record<string, unknown>): ReportListQuery {
+    const pagination = getPaginationQuery(query);
+
+    const search =
+        typeof query.search === 'string'
+            ? query.search.trim()
+            : '';
+
+    const sort =
+        query.sort === 'title' || query.sort === 'createdAt'
+            ? query.sort
+            : 'createdAt';
+
+    const order =
+        query.order === 'asc' || query.order === 'desc'
+            ? query.order
+            : 'desc';
+
+    return {
+        ...pagination,
+        search,
+        sort,
+        order
+    };
+}
+
+export { getPaginationQuery, getProjectListQuery, getReportListQuery };
+export type { PaginationQuery, ProjectListQuery, ReportListQuery };

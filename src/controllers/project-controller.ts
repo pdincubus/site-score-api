@@ -12,7 +12,6 @@ import {
     updateProjectById
 } from '../services/project-service.js';
 
-import { getPaginationQuery } from '../utils/pagination.js';
 import { createProjectSchema, updateProjectSchema } from '../validation/project-schemas.js';
 
 function getSingleParam(value: string | string[]): string {

@@ -420,4 +420,95 @@ describe('Report routes', () => {
             error: 'Forbidden'
         });
     });
+
+    it('filters reports by search term', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
+    
+        const createProjectResponse = await createProject({
+            cookie,
+            name: 'Searchable project',
+            url: 'https://searchable-project.com'
+        });
+    
+        const projectId = createProjectResponse.body.id;
+    
+        await createReport({
+            cookie,
+            projectId,
+            title: 'Homepage audit',
+            summary: 'Main landing page review',
+            accessibilityScore: 85,
+            performanceScore: 90,
+            seoScore: 78,
+            uxScore: 82
+        });
+    
+        await createReport({
+            cookie,
+            projectId,
+            title: 'Checkout audit',
+            summary: 'Purchase flow review',
+            accessibilityScore: 80,
+            performanceScore: 88,
+            seoScore: 76,
+            uxScore: 79
+        });
+    
+        const response = await request(app).get(
+            `/projects/${projectId}/reports?search=checkout`
+        );
+    
+        expect(response.status).toBe(200);
+        expect(response.body.data).toHaveLength(1);
+        expect(response.body.data[0].title).toBe('Checkout audit');
+        expect(response.body.pagination.total).toBe(1);
+    });
+    
+    it('sorts reports by title ascending', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
+    
+        const createProjectResponse = await createProject({
+            cookie,
+            name: 'Sortable reports project',
+            url: 'https://sortable-reports.com'
+        });
+    
+        const projectId = createProjectResponse.body.id;
+    
+        await createReport({
+            cookie,
+            projectId,
+            title: 'Zoo audit',
+            summary: 'Last alphabetically',
+            accessibilityScore: 85,
+            performanceScore: 90,
+            seoScore: 78,
+            uxScore: 82
+        });
+    
+        await createReport({
+            cookie,
+            projectId,
+            title: 'Alpha audit',
+            summary: 'First alphabetically',
+            accessibilityScore: 85,
+            performanceScore: 90,
+            seoScore: 78,
+            uxScore: 82
+        });
+    
+        const response = await request(app).get(
+            `/projects/${projectId}/reports?sort=title&order=asc`
+        );
+    
+        expect(response.status).toBe(200);
+        expect(response.body.data[0].title).toBe('Alpha audit');
+        expect(response.body.data[1].title).toBe('Zoo audit');
+    });
 });
