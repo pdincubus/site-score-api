@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { pool } from '../db/database.js';
 import { AppError } from '../errors/app-error.js';
 import type { Project } from '../types/project.js';
+import type { PaginatedResponse } from '../types/pagination.js';
 
 type CreateProjectInput = {
     name: string;
@@ -28,6 +29,41 @@ function mapProjectRow(row: ProjectRow): Project {
         name: row.name,
         url: row.url,
         createdAt: row.created_at.toISOString()
+    };
+}
+
+async function getPaginatedProjects(
+    page: number,
+    limit: number,
+    offset: number
+): Promise<PaginatedResponse<Project>> {
+    const totalResult = await pool.query<{ count: string }>(
+        `
+            SELECT COUNT(*) AS count
+            FROM projects
+        `
+    );
+
+    const total = Number(totalResult.rows[0]?.count ?? 0);
+
+    const result = await pool.query<ProjectRow>(
+        `
+            SELECT id, name, url, created_at, user_id
+            FROM projects
+            ORDER BY created_at DESC
+            LIMIT $1 OFFSET $2
+        `,
+        [limit, offset]
+    );
+
+    return {
+        data: result.rows.map(mapProjectRow),
+        pagination: {
+            page,
+            limit,
+            total,
+            totalPages: total === 0 ? 0 : Math.ceil(total / limit)
+        }
     };
 }
 
@@ -172,4 +208,4 @@ async function getProjectOwnerId(id: string): Promise<string | undefined> {
     return result.rows[0]?.user_id;
 }
 
-export { getAllProjects, getProjectById, createNewProject, deleteProjectById, updateProjectById, getProjectOwnerId };
+export { getAllProjects, getProjectById, createNewProject, deleteProjectById, updateProjectById, getProjectOwnerId, getPaginatedProjects };

@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { pool } from '../db/database.js';
 import { AppError } from '../errors/app-error.js';
 import type { Report } from '../types/report.js';
+import type { PaginatedResponse } from '../types/pagination.js';
 
 type ReportRow = {
     id: string;
@@ -45,6 +46,45 @@ function mapReportRow(row: ReportRow): Report {
         seoScore: row.seo_score,
         uxScore: row.ux_score,
         createdAt: row.created_at.toISOString()
+    };
+}
+
+async function getPaginatedReportsByProjectId(
+    projectId: string,
+    page: number,
+    limit: number,
+    offset: number
+): Promise<PaginatedResponse<Report>> {
+    const totalResult = await pool.query<{ count: string }>(
+        `
+            SELECT COUNT(*) AS count
+            FROM reports
+            WHERE project_id = $1
+        `,
+        [projectId]
+    );
+
+    const total = Number(totalResult.rows[0]?.count ?? 0);
+
+    const result = await pool.query<ReportRow>(
+        `
+            SELECT id, project_id, title, summary, accessibility_score, performance_score, seo_score, ux_score, created_at
+            FROM reports
+            WHERE project_id = $1
+            ORDER BY created_at DESC
+            LIMIT $2 OFFSET $3
+        `,
+        [projectId, limit, offset]
+    );
+
+    return {
+        data: result.rows.map(mapReportRow),
+        pagination: {
+            page,
+            limit,
+            total,
+            totalPages: total === 0 ? 0 : Math.ceil(total / limit)
+        }
     };
 }
 
@@ -199,5 +239,6 @@ export {
     getReportProjectOwnerId,
     getReportsByProjectId,
     mapReportRow,
-    updateReportById
+    updateReportById,
+    getPaginatedReportsByProjectId
 };

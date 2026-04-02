@@ -1,25 +1,28 @@
 import type { Request, Response } from 'express';
+import { ZodError } from 'zod';
 import { AppError } from '../errors/app-error.js';
 import { getProjectOwnerId } from '../services/project-service.js';
-import { ZodError } from 'zod';
-import { createReportSchema, updateReportSchema } from '../validation/report-schemas.js';
 
 import {
     createNewReport,
     deleteReportById,
+    getPaginatedReportsByProjectId,
     getReportById as getReportByIdFromService,
     getReportProjectOwnerId,
-    getReportsByProjectId,
     updateReportById
 } from '../services/report-service.js';
+
+import { getPaginationQuery } from '../utils/pagination.js';
+import { createReportSchema, updateReportSchema } from '../validation/report-schemas.js';
 
 function getSingleParam(value: string | string[]): string {
     return Array.isArray(value) ? value[0] : value;
 }
 
 async function getProjectReports(req: Request, res: Response) {
-    const id = getSingleParam(req.params.id);
-    const reports = await getReportsByProjectId(id);
+    const projectId = getSingleParam(req.params.id);
+    const { page, limit, offset } = getPaginationQuery(req.query as Record<string, unknown>);
+    const reports = await getPaginatedReportsByProjectId(projectId, page, limit, offset);
 
     res.status(200).json(reports);
 }

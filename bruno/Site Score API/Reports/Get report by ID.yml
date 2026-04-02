@@ -1,0 +1,15 @@
+info:
+  name: Get report by ID
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{baseUrl}}/reports/{{reportId}}"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

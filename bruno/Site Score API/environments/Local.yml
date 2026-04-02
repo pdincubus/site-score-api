@@ -1,0 +1,8 @@
+name: Local
+variables:
+  - name: baseUrl
+    value: http://localhost:3000
+  - name: reportId
+    value: 24a27012-27bb-4ced-9280-344bbf63c768
+  - name: projectId
+    value: 1ba4efa4-bba1-4245-85c4-286e6fe8139e

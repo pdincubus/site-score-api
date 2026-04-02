@@ -30,7 +30,15 @@ describe('Report routes', () => {
         const response = await request(app).get(`/projects/${projectId}/reports`);
 
         expect(response.status).toBe(200);
-        expect(response.body).toEqual([]);
+        expect(response.body).toEqual({
+            data: [],
+            pagination: {
+                page: 1,
+                limit: 10,
+                total: 0,
+                totalPages: 0
+            }
+        });
     });
 
     it('creates a report for an owned project', async () => {
@@ -159,9 +167,9 @@ describe('Report routes', () => {
         const response = await request(app).get(`/projects/${projectId}/reports`);
 
         expect(response.status).toBe(200);
-        expect(response.body).toHaveLength(1);
-        expect(response.body[0].projectId).toBe(projectId);
-        expect(response.body[0].title).toBe('Homepage audit');
+        expect(response.body.data).toHaveLength(1);
+        expect(response.body.data[0].projectId).toBe(projectId);
+        expect(response.body.data[0].title).toBe('Homepage audit');
     });
 
     it('returns a report by id', async () => {

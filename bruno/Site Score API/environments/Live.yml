@@ -1,0 +1,8 @@
+name: Live
+variables:
+  - name: baseUrl
+    value: https://site-score-api.onrender.com
+  - name: reportId
+    value: 1b12d307-b850-4010-a972-f0ee82f61b6b
+  - name: projectId
+    value: 892cc593-a0d8-497d-a53e-9502a292f2ad

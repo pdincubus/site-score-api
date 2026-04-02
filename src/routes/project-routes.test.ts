@@ -13,7 +13,15 @@ describe('Project routes', () => {
         const response = await request(app).get('/projects');
 
         expect(response.status).toBe(200);
-        expect(response.body).toEqual([]);
+        expect(response.body).toEqual({
+            data: [],
+            pagination: {
+                page: 1,
+                limit: 10,
+                total: 0,
+                totalPages: 0
+            }
+        });
     });
 
     it('rejects project creation when not authenticated', async () => {

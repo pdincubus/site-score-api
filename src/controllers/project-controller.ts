@@ -1,25 +1,28 @@
 import type { Request, Response } from 'express';
-import { AppError } from '../errors/app-error.js';
 import { ZodError } from 'zod';
-import { createProjectSchema, updateProjectSchema } from '../validation/project-schemas.js';
+import { AppError } from '../errors/app-error.js';
 
 import {
     createNewProject,
     deleteProjectById,
-    getAllProjects,
+    getPaginatedProjects,
     getProjectById as getProjectByIdFromService,
     getProjectOwnerId,
     updateProjectById
 } from '../services/project-service.js';
 
+import { getPaginationQuery } from '../utils/pagination.js';
+import { createProjectSchema, updateProjectSchema } from '../validation/project-schemas.js';
+
 function getSingleParam(value: string | string[]): string {
     return Array.isArray(value) ? value[0] : value;
 }
 
-async function getProjects(_req: Request, res: Response) {
-    const allProjects = await getAllProjects();
+async function getProjects(req: Request, res: Response) {
+    const { page, limit, offset } = getPaginationQuery(req.query as Record<string, unknown>);
+    const projects = await getPaginatedProjects(page, limit, offset);
 
-    res.status(200).json(allProjects);
+    res.status(200).json(projects);
 }
 
 async function getProjectById(req: Request, res: Response) {
@@ -33,30 +36,28 @@ async function getProjectById(req: Request, res: Response) {
     res.status(200).json(project);
 }
 
-async function deleteProject(req: Request, res: Response) {
-    const id = getSingleParam(req.params.id);
-
+async function createProject(req: Request, res: Response) {
     if (!req.currentUser) {
         throw new AppError('Not authenticated', 401);
     }
 
-    const ownerId = await getProjectOwnerId(id);
+    try {
+        const { name, url } = createProjectSchema.parse(req.body);
 
-    if (!ownerId) {
-        throw new AppError('Project not found', 404);
+        const newProject = await createNewProject({
+            name,
+            url,
+            userId: req.currentUser.id
+        });
+
+        res.status(201).json(newProject);
+    } catch (error) {
+        if (error instanceof ZodError) {
+            throw new AppError(error.issues[0]?.message || 'Invalid request body', 400);
+        }
+
+        throw error;
     }
-
-    if (ownerId !== req.currentUser.id) {
-        throw new AppError('Forbidden', 403);
-    }
-
-    const wasDeleted = await deleteProjectById(id);
-
-    if (!wasDeleted) {
-        throw new AppError('Project not found', 404);
-    }
-
-    res.status(204).send();
 }
 
 async function updateProject(req: Request, res: Response) {
@@ -98,28 +99,30 @@ async function updateProject(req: Request, res: Response) {
     }
 }
 
-async function createProject(req: Request, res: Response) {
+async function deleteProject(req: Request, res: Response) {
+    const id = getSingleParam(req.params.id);
+
     if (!req.currentUser) {
         throw new AppError('Not authenticated', 401);
     }
 
-    try {
-        const { name, url } = createProjectSchema.parse(req.body);
+    const ownerId = await getProjectOwnerId(id);
 
-        const newProject = await createNewProject({
-            name,
-            url,
-            userId: req.currentUser.id
-        });
-
-        res.status(201).json(newProject);
-    } catch (error) {
-        if (error instanceof ZodError) {
-            throw new AppError(error.issues[0]?.message || 'Invalid request body', 400);
-        }
-
-        throw error;
+    if (!ownerId) {
+        throw new AppError('Project not found', 404);
     }
+
+    if (ownerId !== req.currentUser.id) {
+        throw new AppError('Forbidden', 403);
+    }
+
+    const wasDeleted = await deleteProjectById(id);
+
+    if (!wasDeleted) {
+        throw new AppError('Project not found', 404);
+    }
+
+    res.status(204).send();
 }
 
-export { getProjects, getProjectById, createProject, deleteProject, updateProject, createProject as createProjectForUser };
+export { getProjects, getProjectById, createProject, updateProject, deleteProject };

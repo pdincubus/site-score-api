@@ -1,0 +1,26 @@
+info:
+  name: Create a report for a project
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/projects/{{projectId}}/reports"
+  body:
+    type: json
+    data: |-
+      {
+        "title": "Homepage audit",
+        "summary": "Initial report for homepage checks",
+        "accessibilityScore": 85,
+        "performanceScore": 90,
+        "seoScore": 78,
+        "uxScore": 82
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
