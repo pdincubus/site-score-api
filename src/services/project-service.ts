@@ -1,8 +1,9 @@
 import crypto from 'node:crypto';
 import { pool } from '../db/database.js';
 import { AppError } from '../errors/app-error.js';
-import type { Project } from '../types/project.js';
 import type { PaginatedResponse } from '../types/pagination.js';
+import type { Project } from '../types/project.js';
+import type { ProjectListQuery } from '../utils/pagination.js';
 
 type CreateProjectInput = {
     name: string;
@@ -33,36 +34,57 @@ function mapProjectRow(row: ProjectRow): Project {
 }
 
 async function getPaginatedProjects(
-    page: number,
-    limit: number,
-    offset: number
+    query: ProjectListQuery
 ): Promise<PaginatedResponse<Project>> {
+    const sortColumn = query.sort === 'name' ? 'name' : 'created_at';
+    const sortOrder = query.order === 'asc' ? 'ASC' : 'DESC';
+    const searchTerm = query.search.trim();
+
+    const whereClause =
+        searchTerm === ''
+            ? ''
+            : `
+                WHERE name ILIKE $1
+                   OR url ILIKE $1
+            `;
+
+    const totalParams = searchTerm === '' ? [] : [`%${searchTerm}%`];
+
     const totalResult = await pool.query<{ count: string }>(
         `
             SELECT COUNT(*) AS count
             FROM projects
-        `
+            ${whereClause}
+        `,
+        totalParams
     );
 
     const total = Number(totalResult.rows[0]?.count ?? 0);
+
+    const dataParams =
+        searchTerm === ''
+            ? [query.limit, query.offset]
+            : [`%${searchTerm}%`, query.limit, query.offset];
 
     const result = await pool.query<ProjectRow>(
         `
             SELECT id, name, url, created_at, user_id
             FROM projects
-            ORDER BY created_at DESC
-            LIMIT $1 OFFSET $2
+            ${whereClause}
+            ORDER BY ${sortColumn} ${sortOrder}
+            LIMIT $${searchTerm === '' ? 1 : 2}
+            OFFSET $${searchTerm === '' ? 2 : 3}
         `,
-        [limit, offset]
+        dataParams
     );
 
     return {
         data: result.rows.map(mapProjectRow),
         pagination: {
-            page,
-            limit,
+            page: query.page,
+            limit: query.limit,
             total,
-            totalPages: total === 0 ? 0 : Math.ceil(total / limit)
+            totalPages: total === 0 ? 0 : Math.ceil(total / query.limit)
         }
     };
 }

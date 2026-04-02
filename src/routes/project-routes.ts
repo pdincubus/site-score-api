@@ -31,6 +31,30 @@ const projectRoutes = Router();
  *         schema:
  *           type: integer
  *           example: 10
+ *       - in: query
+ *         name: search
+ *         required: false
+ *         schema:
+ *           type: string
+ *           example: site
+ *       - in: query
+ *         name: sort
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - createdAt
+ *             - name
+ *           example: createdAt
+ *       - in: query
+ *         name: order
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - asc
+ *             - desc
+ *           example: desc
  *     responses:
  *       200:
  *         description: Paginated list of projects

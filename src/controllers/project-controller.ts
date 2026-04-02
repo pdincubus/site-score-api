@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { ZodError } from 'zod';
 import { AppError } from '../errors/app-error.js';
+import { getProjectListQuery } from '../utils/pagination.js';
 
 import {
     createNewProject,
@@ -19,8 +20,8 @@ function getSingleParam(value: string | string[]): string {
 }
 
 async function getProjects(req: Request, res: Response) {
-    const { page, limit, offset } = getPaginationQuery(req.query as Record<string, unknown>);
-    const projects = await getPaginatedProjects(page, limit, offset);
+    const query = getProjectListQuery(req.query as Record<string, unknown>);
+    const projects = await getPaginatedProjects(query);
 
     res.status(200).json(projects);
 }

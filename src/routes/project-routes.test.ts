@@ -281,4 +281,89 @@ describe('Project routes', () => {
             error: 'Forbidden'
         });
     });
+
+    it('filters projects by search term', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
+    
+        await createProject({
+            cookie,
+            name: 'Site Score',
+            url: 'https://site-score.com'
+        });
+    
+        await createProject({
+            cookie,
+            name: 'Another Project',
+            url: 'https://another-project.com'
+        });
+    
+        const response = await request(app).get('/projects?search=site');
+    
+        expect(response.status).toBe(200);
+        expect(response.body.data).toHaveLength(1);
+        expect(response.body.data[0].name).toBe('Site Score');
+        expect(response.body.pagination.total).toBe(1);
+    });
+
+    it('sorts projects by name ascending', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
+    
+        await createProject({
+            cookie,
+            name: 'Zoo Project',
+            url: 'https://zoo-project.com'
+        });
+    
+        await createProject({
+            cookie,
+            name: 'Alpha Project',
+            url: 'https://alpha-project.com'
+        });
+    
+        const response = await request(app).get('/projects?sort=name&order=asc');
+    
+        expect(response.status).toBe(200);
+        expect(response.body.data[0].name).toBe('Alpha Project');
+        expect(response.body.data[1].name).toBe('Zoo Project');
+    });
+
+    it('paginates projects with page and limit', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
+    
+        await createProject({
+            cookie,
+            name: 'Project One',
+            url: 'https://project-one.com'
+        });
+    
+        await createProject({
+            cookie,
+            name: 'Project Two',
+            url: 'https://project-two.com'
+        });
+    
+        await createProject({
+            cookie,
+            name: 'Project Three',
+            url: 'https://project-three.com'
+        });
+    
+        const response = await request(app).get('/projects?page=1&limit=2');
+    
+        expect(response.status).toBe(200);
+        expect(response.body.data).toHaveLength(2);
+        expect(response.body.pagination.page).toBe(1);
+        expect(response.body.pagination.limit).toBe(2);
+        expect(response.body.pagination.total).toBe(3);
+        expect(response.body.pagination.totalPages).toBe(2);
+    });
 });
