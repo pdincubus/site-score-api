@@ -1,11 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { pool } from '../db/database.js';
+import { migrationPool } from '../db/migration-database.js';
 
 const migrationsDir = path.resolve(process.cwd(), 'sql/migrations');
 
 async function ensureMigrationsTable() {
-    await pool.query(`
+    await migrationPool.query(`
         CREATE TABLE IF NOT EXISTS schema_migrations (
             id SERIAL PRIMARY KEY,
             filename TEXT NOT NULL UNIQUE,
@@ -15,7 +15,7 @@ async function ensureMigrationsTable() {
 }
 
 async function getAppliedMigrationFilenames(): Promise<Set<string>> {
-    const result = await pool.query<{ filename: string }>(`
+    const result = await migrationPool.query<{ filename: string }>(`
         SELECT filename
         FROM schema_migrations
         ORDER BY filename ASC
@@ -44,20 +44,20 @@ async function runMigrations() {
 
         console.log(`Running migration: ${filename}`);
 
-        await pool.query('BEGIN');
+        await migrationPool.query('BEGIN');
 
         try {
-            await pool.query(sql);
-            await pool.query(
+            await migrationPool.query(sql);
+            await migrationPool.query(
                 `
                     INSERT INTO schema_migrations (filename)
                     VALUES ($1)
                 `,
                 [filename]
             );
-            await pool.query('COMMIT');
+            await migrationPool.query('COMMIT');
         } catch (error) {
-            await pool.query('ROLLBACK');
+            await migrationPool.query('ROLLBACK');
             throw error;
         }
     }
@@ -71,5 +71,5 @@ runMigrations()
         process.exitCode = 1;
     })
     .finally(async () => {
-        await pool.end();
+        await migrationPool.end();
     });

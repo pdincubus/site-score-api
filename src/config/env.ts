@@ -5,7 +5,11 @@ dotenv.config();
 const port = Number(process.env.PORT);
 const databaseUrl = process.env.DATABASE_URL;
 const databaseTestUrl = process.env.DATABASE_TEST_URL;
+const databaseMigrationUrl = process.env.DATABASE_MIGRATION_URL || databaseUrl;
 const sessionSecret = process.env.SESSION_SECRET;
+const seedUserName = process.env.SEED_USER_NAME;
+const seedUserEmail = process.env.SEED_USER_EMAIL;
+const seedUserPassword = process.env.SEED_USER_PASSWORD;
 const nodeEnv = process.env.NODE_ENV || 'development';
 
 if (!databaseUrl) {
@@ -22,7 +26,11 @@ const env = {
     isProduction: nodeEnv === 'production',
     databaseUrl,
     databaseTestUrl: databaseTestUrl || '',
-    sessionSecret
+    databaseMigrationUrl: databaseMigrationUrl || '',
+    sessionSecret,
+    seedUserName: seedUserName || '',
+    seedUserEmail: seedUserEmail || '',
+    seedUserPassword: seedUserPassword || ''
 };
 
 export { env };
