@@ -2,6 +2,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import swaggerUi from 'swagger-ui-express';
 import { openApiSpec } from './config/openapi.js';
+import cors from 'cors';
 
 import { errorMiddleware, notFoundMiddleware } from './middleware/error-middleware.js';
 import { requestLogger } from './middleware/request-logger.js';
@@ -10,6 +11,25 @@ import { authRoutes } from './routes/auth-routes.js';
 import { reportRoutes } from './routes/report-routes.js';
 
 const app = express();
+
+const allowedOrigins = [
+    'http://localhost:5173',
+    'https://site-score-ui.vercel.app'
+];
+
+app.use(
+    cors({
+        origin(origin, callback) {
+            if (!origin || allowedOrigins.includes(origin)) {
+                callback(null, true);
+                return;
+            }
+
+            callback(new Error('Not allowed by CORS'));
+        },
+        credentials: true
+    })
+);
 
 app.use(express.json());
 app.use(cookieParser());

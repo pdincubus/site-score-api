@@ -11,9 +11,9 @@
     "test:watch": "NODE_ENV=test vitest",
     "migrate": "tsx src/scripts/run-migrations.ts",
     "migrate:test": "NODE_ENV=test tsx src/scripts/run-migrations.ts",
-    "seed": "tsx src/scripts/seed.ts",
-    "seed:test-data": "NODE_ENV=test tsx src/scripts/seed-test-data.ts",
-    "seed:dev-data": "NODE_ENV=development tsx src/scripts/seed-dev-data.ts"
+    "seed:user": "tsx src/scripts/seed.ts",
+    "seed:dev-data": "NODE_ENV=development tsx src/scripts/seed-dev-data.ts",
+    "seed:test-data": "NODE_ENV=test tsx src/scripts/seed-test-data.ts"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +22,7 @@
   "dependencies": {
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "pg": "^8.20.0",
@@ -32,6 +33,7 @@
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.5.0",
     "@types/pg": "^8.20.0",
