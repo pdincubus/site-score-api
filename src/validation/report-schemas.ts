@@ -3,14 +3,8 @@ import { z } from 'zod';
 const scoreSchema = z.number().int().min(0).max(100);
 
 const createReportSchema = z.object({
-    title: z.string({
-        error: (issue) =>
-            issue.input === undefined ? 'Title is required' : 'Title must be a string'
-    }).trim().min(1, 'Title is required'),
-    summary: z.string({
-        error: (issue) =>
-            issue.input === undefined ? 'Summary is required' : 'Summary must be a string'
-    }).trim().min(1, 'Summary is required'),
+    title: z.string().trim().min(1, 'Title is required'),
+    summary: z.string().trim().min(1, 'Summary is required'),
     accessibilityScore: scoreSchema,
     performanceScore: scoreSchema,
     seoScore: scoreSchema,

@@ -13,15 +13,19 @@ import {
     updateReportById
 } from '../services/report-service.js';
 
+function getSingleParam(value: string | string[]): string {
+    return Array.isArray(value) ? value[0] : value;
+}
+
 async function getProjectReports(req: Request, res: Response) {
-    const { id } = req.params;
+    const id = getSingleParam(req.params.id);
     const reports = await getReportsByProjectId(id);
 
     res.status(200).json(reports);
 }
 
 async function getReportById(req: Request, res: Response) {
-    const { id } = req.params;
+    const id = getSingleParam(req.params.id);
     const report = await getReportByIdFromService(id);
 
     if (!report) {
@@ -32,7 +36,7 @@ async function getReportById(req: Request, res: Response) {
 }
 
 async function createReport(req: Request, res: Response) {
-    const { id: projectId } = req.params;
+    const projectId = getSingleParam(req.params.id);
 
     if (!req.currentUser) {
         throw new AppError('Not authenticated', 401);
@@ -79,7 +83,7 @@ async function createReport(req: Request, res: Response) {
 }
 
 async function updateReport(req: Request, res: Response) {
-    const { id } = req.params;
+    const id = getSingleParam(req.params.id);
 
     if (!req.currentUser) {
         throw new AppError('Not authenticated', 401);
@@ -129,7 +133,7 @@ async function updateReport(req: Request, res: Response) {
 }
 
 async function deleteReport(req: Request, res: Response) {
-    const { id } = req.params;
+    const id = getSingleParam(req.params.id);
 
     if (!req.currentUser) {
         throw new AppError('Not authenticated', 401);

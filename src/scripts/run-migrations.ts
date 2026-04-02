@@ -1,11 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { pool } from '../db/database.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const migrationsDir = path.resolve(__dirname, '../../sql/migrations');
+const migrationsDir = path.resolve(process.cwd(), 'sql/migrations');
 
 async function ensureMigrationsTable() {
     await pool.query(`

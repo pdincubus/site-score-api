@@ -12,6 +12,10 @@ import {
     updateProjectById
 } from '../services/project-service.js';
 
+function getSingleParam(value: string | string[]): string {
+    return Array.isArray(value) ? value[0] : value;
+}
+
 async function getProjects(_req: Request, res: Response) {
     const allProjects = await getAllProjects();
 
@@ -19,7 +23,7 @@ async function getProjects(_req: Request, res: Response) {
 }
 
 async function getProjectById(req: Request, res: Response) {
-    const { id } = req.params;
+    const id = getSingleParam(req.params.id);
     const project = await getProjectByIdFromService(id);
 
     if (!project) {
@@ -30,7 +34,7 @@ async function getProjectById(req: Request, res: Response) {
 }
 
 async function deleteProject(req: Request, res: Response) {
-    const { id } = req.params;
+    const id = getSingleParam(req.params.id);
 
     if (!req.currentUser) {
         throw new AppError('Not authenticated', 401);
@@ -56,7 +60,7 @@ async function deleteProject(req: Request, res: Response) {
 }
 
 async function updateProject(req: Request, res: Response) {
-    const { id } = req.params;
+    const id = getSingleParam(req.params.id);
 
     if (!req.currentUser) {
         throw new AppError('Not authenticated', 401);

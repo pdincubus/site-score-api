@@ -1,14 +1,8 @@
 import { z } from 'zod';
 
 const createProjectSchema = z.object({
-    name: z.string({
-        error: (issue) =>
-            issue.input === undefined ? 'Name is required' : 'Name must be a string'
-    }).trim().min(1, 'Name is required'),
-    url: z.string({
-        error: (issue) =>
-            issue.input === undefined ? 'URL is required' : 'URL must be a string'
-    }).trim().min(1, 'URL is required').url('URL must be valid')
+    name: z.string().trim().min(1, 'Name is required'),
+    url: z.string().trim().min(1, 'URL is required').url('URL must be valid')
 });
 
 const updateProjectSchema = z.object({

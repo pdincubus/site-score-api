@@ -12,14 +12,16 @@ type LoginInput = {
     password?: string;
 };
 
+type AuthCookie = string[];
+
 type CreateProjectInput = {
-    cookie: string[];
+    cookie: AuthCookie;
     name: string;
     url: string;
 };
 
 type CreateReportInput = {
-    cookie: string[];
+    cookie: AuthCookie;
     projectId: string;
     title: string;
     summary: string;
@@ -52,7 +54,7 @@ async function loginUser(input: LoginInput) {
         });
 }
 
-async function registerAndLoginAs(input: AuthUserInput) {
+async function registerAndLoginAs(input: AuthUserInput): Promise<AuthCookie> {
     const password = input.password ?? 'secret123';
 
     await registerUser({
@@ -66,7 +68,13 @@ async function registerAndLoginAs(input: AuthUserInput) {
         password
     });
 
-    return loginResponse.headers['set-cookie'];
+    const cookie = loginResponse.headers['set-cookie'];
+
+    if (!cookie || !Array.isArray(cookie)) {
+        throw new Error('Expected login response to include a set-cookie header array');
+    }
+
+    return cookie;
 }
 
 async function createProject(input: CreateProjectInput) {
