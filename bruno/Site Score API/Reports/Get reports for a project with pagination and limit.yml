@@ -1,0 +1,22 @@
+info:
+  name: Get reports for a project with pagination and limit
+  type: http
+  seq: 3
+
+http:
+  method: GET
+  url: "{{baseUrl}}/projects/{{projectId}}/reports?page={{page}}&limit={{limit}}"
+  params:
+    - name: page
+      value: "{{page}}"
+      type: query
+    - name: limit
+      value: "{{limit}}"
+      type: query
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
