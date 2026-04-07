@@ -110,10 +110,17 @@ Optional, depending on your workflow:
 
 ```env
 DATABASE_MIGRATION_URL=postgresql://localhost:5432/site_score_api
+SEED_DATABASE_URL=
 SEED_USER_NAME=Phil
 SEED_USER_EMAIL=phil@example.com
 SEED_USER_PASSWORD=secret123
 ```
+
+**Which database URL is used where**
+
+- **`DATABASE_MIGRATION_URL`** — Used only by `npm run migrate` and `npm run migrate:test` (running SQL migrations / DDL). Set this to a direct Postgres connection when your `DATABASE_URL` is pooled or otherwise unsuitable for migrations (for example, a Neon direct URL).
+- **`DATABASE_URL` / `DATABASE_TEST_URL`** — Used by the API at runtime and by seed scripts **by default** (`DATABASE_TEST_URL` when `NODE_ENV=test`, otherwise `DATABASE_URL`).
+- **`SEED_DATABASE_URL`** — Optional. When set, `npm run seed:user`, `npm run seed:dev-data`, and `npm run seed:test-data` connect to this URL instead of the default above. Use it to seed a specific database (for example production) without changing `DATABASE_URL`.
 
 You should also keep `.env.example` updated with the same keys but safe placeholder values.
 
@@ -145,6 +152,8 @@ npm run migrate:test
 npm run seed:dev-data
 ```
 
+To point seeds at another database without editing `.env`, set `SEED_DATABASE_URL` for that command (see **Which database URL is used where** above).
+
 ### 5. Start the dev server
 
 ```bash
@@ -173,7 +182,7 @@ npm test
 npm run test:watch
 npm run migrate
 npm run migrate:test
-npm run seed
+npm run seed:user
 npm run seed:dev-data
 npm run seed:test-data
 ```
@@ -463,6 +472,14 @@ Current migrations include:
 ## Seed data
 
 The project includes simple seed scripts for local development and test environments.
+
+### Seed a single user
+
+Creates one user from `SEED_USER_EMAIL`, `SEED_USER_PASSWORD`, and optional `SEED_USER_NAME` in `.env`. Uses the same database URL rules as other seeds (`DATABASE_URL` by default, or `SEED_DATABASE_URL` when set).
+
+```bash
+npm run seed:user
+```
 
 ### Seed local dev data
 

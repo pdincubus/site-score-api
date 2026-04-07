@@ -32,6 +32,13 @@ type SeedData = {
     reports: SeedReport[];
 };
 
+const PROJECT_COUNT = 75;
+const REPORT_COUNT = 500;
+
+function buildScore(seed: number, offset: number): number {
+    return 60 + ((seed * 13 + offset * 7) % 40);
+}
+
 async function buildSeedData(): Promise<SeedData> {
     const passwordHash = await bcrypt.hash('secret123', 10);
 
@@ -49,69 +56,33 @@ async function buildSeedData(): Promise<SeedData> {
         passwordHash
     };
 
-    const projects: SeedProject[] = [
-        {
-            id: crypto.randomUUID(),
-            name: 'Site Score Marketing Site',
-            url: 'https://site-score-marketing.test',
-            userId: philUser.id
-        },
-        {
-            id: crypto.randomUUID(),
-            name: 'Accessibility Audit Tool',
-            url: 'https://a11y-audit-tool.test',
-            userId: philUser.id
-        },
-        {
-            id: crypto.randomUUID(),
-            name: 'NPPT Shop',
-            url: 'https://nppt-shop.test',
-            userId: otherUser.id
-        }
-    ];
+    const projects: SeedProject[] = Array.from({ length: PROJECT_COUNT }, (_, index) => {
+        const projectNumber = index + 1;
+        const owner = index < 60 ? philUser : otherUser;
 
-    const reports: SeedReport[] = [
-        {
+        return {
             id: crypto.randomUUID(),
-            projectId: projects[0].id,
-            title: 'Homepage audit',
-            summary: 'Homepage accessibility and performance review',
-            accessibilityScore: 88,
-            performanceScore: 91,
-            seoScore: 79,
-            uxScore: 84
-        },
-        {
+            name: `Seed Project ${projectNumber}`,
+            url: `https://seed-project-${projectNumber}.test`,
+            userId: owner.id
+        };
+    });
+
+    const reports: SeedReport[] = Array.from({ length: REPORT_COUNT }, (_, index) => {
+        const reportNumber = index + 1;
+        const project = projects[index % projects.length];
+
+        return {
             id: crypto.randomUUID(),
-            projectId: projects[0].id,
-            title: 'Checkout audit',
-            summary: 'Checkout flow review',
-            accessibilityScore: 82,
-            performanceScore: 87,
-            seoScore: 75,
-            uxScore: 81
-        },
-        {
-            id: crypto.randomUUID(),
-            projectId: projects[1].id,
-            title: 'Dashboard audit',
-            summary: 'Dashboard usability review',
-            accessibilityScore: 90,
-            performanceScore: 85,
-            seoScore: 70,
-            uxScore: 86
-        },
-        {
-            id: crypto.randomUUID(),
-            projectId: projects[2].id,
-            title: 'Shop landing page audit',
-            summary: 'Landing page review for shop',
-            accessibilityScore: 76,
-            performanceScore: 80,
-            seoScore: 83,
-            uxScore: 78
-        }
-    ];
+            projectId: project.id,
+            title: `Automated audit ${reportNumber}`,
+            summary: `Synthetic seeded report ${reportNumber} for pagination testing`,
+            accessibilityScore: buildScore(reportNumber, 1),
+            performanceScore: buildScore(reportNumber, 2),
+            seoScore: buildScore(reportNumber, 3),
+            uxScore: buildScore(reportNumber, 4)
+        };
+    });
 
     return {
         users: [philUser, otherUser],

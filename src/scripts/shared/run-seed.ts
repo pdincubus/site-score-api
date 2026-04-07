@@ -73,23 +73,25 @@ async function runSeed(pool: Pool, label: string) {
 
         console.log(`Seeded ${label} data successfully.`);
         console.log('');
-        console.log('Users:');
+        console.log(`Users (${seedData.users.length}):`);
 
         for (const user of seedData.users) {
             console.log(`- ${user.email} / secret123`);
         }
 
         console.log('');
-        console.log('Projects:');
+        console.log(`Projects: ${seedData.projects.length}`);
+        console.log('Sample projects:');
 
-        for (const project of seedData.projects) {
+        for (const project of seedData.projects.slice(0, 10)) {
             console.log(`- ${project.name} (${project.id})`);
         }
 
         console.log('');
-        console.log('Reports:');
+        console.log(`Reports: ${seedData.reports.length}`);
+        console.log('Sample reports:');
 
-        for (const report of seedData.reports) {
+        for (const report of seedData.reports.slice(0, 10)) {
             console.log(`- ${report.title} (${report.id})`);
         }
     } catch (error) {

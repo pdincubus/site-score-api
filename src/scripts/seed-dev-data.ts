@@ -1,5 +1,5 @@
 import { env } from '../config/env.js';
-import { migrationPool } from '../db/migration-database.js';
+import { getSeedPool } from '../db/seed-database.js';
 import { runSeed } from './shared/run-seed.js';
 
 async function seedDevData() {
@@ -7,7 +7,9 @@ async function seedDevData() {
         throw new Error('seed-dev-data must only be run with NODE_ENV=development');
     }
 
-    await runSeed(migrationPool, 'dev');
+    const pool = getSeedPool();
+
+    await runSeed(pool, 'dev');
 }
 
 seedDevData().catch((error) => {

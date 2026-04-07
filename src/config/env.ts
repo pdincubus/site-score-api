@@ -9,6 +9,7 @@ const sessionSecret = process.env.SESSION_SECRET;
 const seedUserName = process.env.SEED_USER_NAME;
 const seedUserEmail = process.env.SEED_USER_EMAIL;
 const seedUserPassword = process.env.SEED_USER_PASSWORD;
+const seedDatabaseUrl = process.env.SEED_DATABASE_URL?.trim() || '';
 const nodeEnv = process.env.NODE_ENV || 'development';
 
 if (!databaseUrl) {
@@ -38,7 +39,8 @@ const env = {
     sessionSecret,
     seedUserName: seedUserName || '',
     seedUserEmail: seedUserEmail || '',
-    seedUserPassword: seedUserPassword || ''
+    seedUserPassword: seedUserPassword || '',
+    seedDatabaseUrl
 };
 
 export { env };
