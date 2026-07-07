@@ -34,6 +34,7 @@ It was built as a practical learning and portfolio project to strengthen back en
 - Update a report when authenticated and authorised
 - Delete a report when authenticated and authorised
 - Paginated list endpoint for project reports with `page` and `limit`
+- Preview PageSpeed report insights for an owned project before saving them to a report
 
 ### Security and access rules
 - Project and report read routes require authentication
@@ -116,6 +117,8 @@ SEED_USER_NAME=Phil
 SEED_USER_EMAIL=phil@example.com
 SEED_USER_PASSWORD=secret123
 ALLOW_DESTRUCTIVE_SEED=false
+PAGESPEED_API_KEY=
+PAGESPEED_TIMEOUT_MS=15000
 ```
 
 **Which database URL is used where**
@@ -124,6 +127,8 @@ ALLOW_DESTRUCTIVE_SEED=false
 - **`DATABASE_URL` / `DATABASE_TEST_URL`** — Used by the API at runtime and by seed scripts **by default** (`DATABASE_TEST_URL` when `NODE_ENV=test`, otherwise `DATABASE_URL`).
 - **`SEED_DATABASE_URL`** — Optional. When set, `npm run seed:user`, `npm run seed:dev-data`, and `npm run seed:test-data` connect to this URL instead of the default above. Use it sparingly when a seed command must target a specific database without changing `DATABASE_URL`.
 - **`ALLOW_DESTRUCTIVE_SEED`** — Required as `true` before the bulk dev/test seed scripts can wipe a database when `SEED_DATABASE_URL` is set, `NODE_ENV=production`, or the target database host is not local.
+- **`PAGESPEED_API_KEY`** — Optional server-side Google PageSpeed API key. Do not expose this to the frontend.
+- **`PAGESPEED_TIMEOUT_MS`** — Optional PageSpeed request timeout in milliseconds. Defaults to `15000`.
 
 You should also keep `.env.example` updated with the same keys but safe placeholder values.
 
@@ -380,6 +385,7 @@ Response example:
             "performanceScore": 90,
             "seoScore": 78,
             "uxScore": 82,
+            "insights": null,
             "createdAt": "2026-04-01T13:15:06.935Z"
         }
     ],
@@ -407,6 +413,23 @@ Request body example:
     "uxScore": 82
 }
 ```
+
+Add optional normalised `insights` to save a reviewed PageSpeed import alongside the manual scores.
+
+#### `POST /projects/:projectId/report-insight-imports`
+Fetch and normalise PageSpeed insights for review. Requires authentication and ownership of the parent project. This endpoint does not create a report.
+
+Request body example:
+
+```json
+{
+    "source": "PAGESPEED",
+    "url": "https://example.com/",
+    "strategy": "mobile"
+}
+```
+
+The response includes normalised scores, metrics, field data placeholder, and up to five opportunities. The frontend can pass that `insights` object into report create/update after user review.
 
 #### `GET /reports/:id`
 Get an owned report by id.
@@ -439,6 +462,8 @@ Request body validation is handled with Zod for:
 - project update payloads
 - report create payloads
 - report update payloads
+- report insight import payloads
+- persisted report insights
 
 ### Database constraints
 PostgreSQL also enforces report score ranges with `CHECK` constraints so scores must remain between `0` and `100`.
@@ -458,6 +483,7 @@ The app uses PostgreSQL for:
 - a project belongs to one user
 - a project can have many reports
 - a report belongs to one project
+- a report can optionally store normalised PageSpeed or future CrUX insights
 - a session belongs to one user
 
 ## Migrations
@@ -480,6 +506,7 @@ Current migrations include:
 - `002_add_project_user_id.sql`
 - `003_add_report_score_checks.sql`
 - `004_add_read_path_indexes.sql`
+- `005_add_report_insights.sql`
 
 ## Seed data
 

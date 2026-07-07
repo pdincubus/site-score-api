@@ -8,6 +8,45 @@ import {
     registerAndLoginAs
 } from '../test/test-helpers.js';
 
+const validInsights = {
+    source: 'PAGESPEED',
+    strategy: 'mobile',
+    testedUrl: 'https://example.com/',
+    finalUrl: 'https://example.com/',
+    fetchedAt: '2026-07-07T12:00:00.000Z',
+    lighthouseVersion: '13.0.0',
+    scores: {
+        performance: 94,
+        accessibility: 98,
+        bestPractices: 92,
+        seo: 100
+    },
+    metrics: {
+        largestContentfulPaint: {
+            value: 1800,
+            unit: 'ms',
+            displayValue: '1.8 s',
+            category: null
+        },
+        cumulativeLayoutShift: {
+            value: 0.02,
+            unit: 'unitless',
+            displayValue: '0.02',
+            category: null
+        }
+    },
+    fieldData: null,
+    opportunities: [
+        {
+            id: 'render-blocking-resources',
+            title: 'Eliminate render-blocking resources',
+            displayValue: 'Potential savings of 520 ms',
+            score: 0.71,
+            overallSavingsMs: 520
+        }
+    ]
+};
+
 describe('Report routes', () => {
     beforeEach(async () => {
         await clearTables();
@@ -93,6 +132,72 @@ describe('Report routes', () => {
         expect(response.body.projectId).toBe(projectId);
         expect(response.body.title).toBe('Homepage audit');
         expect(response.body.accessibilityScore).toBe(85);
+    });
+
+    it('creates a report with optional PageSpeed insights', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil-insights-create@example.com'
+        });
+
+        const createProjectResponse = await createProject({
+            cookie,
+            name: 'Project with imported insights',
+            url: 'https://with-imported-insights.com'
+        });
+
+        const projectId = createProjectResponse.body.id;
+
+        const response = await createReport({
+            cookie,
+            projectId,
+            title: 'Homepage audit',
+            summary: 'Initial report',
+            accessibilityScore: 98,
+            performanceScore: 94,
+            seoScore: 100,
+            uxScore: 82,
+            insights: validInsights
+        });
+
+        expect(response.status).toBe(201);
+        expect(response.body.insights).toEqual(validInsights);
+
+        const listResponse = await request(app)
+            .get(`/projects/${projectId}/reports`)
+            .set('Cookie', cookie);
+
+        expect(listResponse.status).toBe(200);
+        expect(listResponse.body.data[0].insights).toEqual(validInsights);
+    });
+
+    it('rejects malformed report insights on create', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil-bad-insights-create@example.com'
+        });
+
+        const createProjectResponse = await createProject({
+            cookie,
+            name: 'Bad insights project',
+            url: 'https://bad-insights-create.com'
+        });
+
+        const response = await createReport({
+            cookie,
+            projectId: createProjectResponse.body.id,
+            title: 'Homepage audit',
+            summary: 'Initial report',
+            accessibilityScore: 98,
+            performanceScore: 94,
+            seoScore: 100,
+            uxScore: 82,
+            insights: {
+                source: 'PAGESPEED'
+            }
+        });
+
+        expect(response.status).toBe(400);
     });
 
     it('rejects report creation when not authenticated', async () => {
@@ -298,6 +403,78 @@ describe('Report routes', () => {
         expect(response.body.title).toBe('New report title');
         expect(response.body.performanceScore).toBe(95);
         expect(response.body.summary).toBe('Old summary');
+    });
+
+    it('updates report insights when owned by the authenticated user', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil-insights-update@example.com'
+        });
+
+        const createProjectResponse = await createProject({
+            cookie,
+            name: 'Update report insights project',
+            url: 'https://update-report-insights.com'
+        });
+
+        const projectId = createProjectResponse.body.id;
+
+        const createReportResponse = await createReport({
+            cookie,
+            projectId,
+            title: 'Old report title',
+            summary: 'Old summary',
+            accessibilityScore: 70,
+            performanceScore: 71,
+            seoScore: 72,
+            uxScore: 73
+        });
+
+        const response = await request(app)
+            .patch(`/reports/${createReportResponse.body.id}`)
+            .set('Cookie', cookie)
+            .send({
+                insights: validInsights
+            });
+
+        expect(response.status).toBe(200);
+        expect(response.body.insights).toEqual(validInsights);
+        expect(response.body.title).toBe('Old report title');
+    });
+
+    it('rejects malformed report insights on update', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil-bad-insights-update@example.com'
+        });
+
+        const createProjectResponse = await createProject({
+            cookie,
+            name: 'Bad update insights project',
+            url: 'https://bad-update-insights.com'
+        });
+
+        const createReportResponse = await createReport({
+            cookie,
+            projectId: createProjectResponse.body.id,
+            title: 'Old report title',
+            summary: 'Old summary',
+            accessibilityScore: 70,
+            performanceScore: 71,
+            seoScore: 72,
+            uxScore: 73
+        });
+
+        const response = await request(app)
+            .patch(`/reports/${createReportResponse.body.id}`)
+            .set('Cookie', cookie)
+            .send({
+                insights: {
+                    source: 'PAGESPEED'
+                }
+            });
+
+        expect(response.status).toBe(400);
     });
 
     it('rejects report update when not authenticated', async () => {

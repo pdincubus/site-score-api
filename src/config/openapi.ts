@@ -132,6 +132,14 @@ const openApiSpec = swaggerJSDoc({
                             maximum: 100,
                             example: 82
                         },
+                        insights: {
+                            nullable: true,
+                            allOf: [
+                                {
+                                    $ref: '#/components/schemas/ReportInsights'
+                                }
+                            ]
+                        },
                         createdAt: {
                             type: 'string',
                             format: 'date-time',
@@ -147,8 +155,220 @@ const openApiSpec = swaggerJSDoc({
                         'performanceScore',
                         'seoScore',
                         'uxScore',
+                        'insights',
                         'createdAt'
                     ]
+                },
+                ReportInsightMetric: {
+                    type: 'object',
+                    properties: {
+                        value: {
+                            type: 'number',
+                            nullable: true,
+                            example: 1800
+                        },
+                        unit: {
+                            type: 'string',
+                            enum: ['ms', 'score', 'unitless'],
+                            example: 'ms'
+                        },
+                        displayValue: {
+                            type: 'string',
+                            nullable: true,
+                            example: '1.8 s'
+                        },
+                        category: {
+                            type: 'string',
+                            nullable: true,
+                            example: null
+                        }
+                    },
+                    required: ['value', 'unit', 'displayValue']
+                },
+                ReportInsightMetrics: {
+                    type: 'object',
+                    properties: {
+                        firstContentfulPaint: {
+                            $ref: '#/components/schemas/ReportInsightMetric'
+                        },
+                        largestContentfulPaint: {
+                            $ref: '#/components/schemas/ReportInsightMetric'
+                        },
+                        cumulativeLayoutShift: {
+                            $ref: '#/components/schemas/ReportInsightMetric'
+                        },
+                        totalBlockingTime: {
+                            $ref: '#/components/schemas/ReportInsightMetric'
+                        },
+                        speedIndex: {
+                            $ref: '#/components/schemas/ReportInsightMetric'
+                        },
+                        timeToInteractive: {
+                            $ref: '#/components/schemas/ReportInsightMetric'
+                        },
+                        interactionToNextPaint: {
+                            $ref: '#/components/schemas/ReportInsightMetric'
+                        }
+                    }
+                },
+                ReportInsightOpportunity: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            example: 'render-blocking-resources'
+                        },
+                        title: {
+                            type: 'string',
+                            example: 'Eliminate render-blocking resources'
+                        },
+                        displayValue: {
+                            type: 'string',
+                            nullable: true,
+                            example: 'Potential savings of 520 ms'
+                        },
+                        score: {
+                            type: 'number',
+                            nullable: true,
+                            example: 0.71
+                        },
+                        overallSavingsMs: {
+                            type: 'number',
+                            nullable: true,
+                            example: 520
+                        }
+                    },
+                    required: ['id', 'title', 'displayValue', 'score', 'overallSavingsMs']
+                },
+                ReportInsights: {
+                    type: 'object',
+                    properties: {
+                        source: {
+                            type: 'string',
+                            enum: ['PAGESPEED', 'CRUX'],
+                            example: 'PAGESPEED'
+                        },
+                        strategy: {
+                            type: 'string',
+                            enum: ['mobile', 'desktop'],
+                            example: 'mobile'
+                        },
+                        testedUrl: {
+                            type: 'string',
+                            format: 'uri',
+                            example: 'https://example.com/'
+                        },
+                        finalUrl: {
+                            type: 'string',
+                            format: 'uri',
+                            nullable: true,
+                            example: 'https://example.com/'
+                        },
+                        fetchedAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            example: '2026-07-07T12:00:00.000Z'
+                        },
+                        lighthouseVersion: {
+                            type: 'string',
+                            nullable: true,
+                            example: '13.0.0'
+                        },
+                        scores: {
+                            type: 'object',
+                            properties: {
+                                performance: {
+                                    type: 'integer',
+                                    nullable: true,
+                                    minimum: 0,
+                                    maximum: 100,
+                                    example: 94
+                                },
+                                accessibility: {
+                                    type: 'integer',
+                                    nullable: true,
+                                    minimum: 0,
+                                    maximum: 100,
+                                    example: 98
+                                },
+                                bestPractices: {
+                                    type: 'integer',
+                                    nullable: true,
+                                    minimum: 0,
+                                    maximum: 100,
+                                    example: 92
+                                },
+                                seo: {
+                                    type: 'integer',
+                                    nullable: true,
+                                    minimum: 0,
+                                    maximum: 100,
+                                    example: 100
+                                }
+                            },
+                            required: ['performance', 'accessibility', 'bestPractices', 'seo']
+                        },
+                        metrics: {
+                            $ref: '#/components/schemas/ReportInsightMetrics'
+                        },
+                        fieldData: {
+                            nullable: true,
+                            type: 'object',
+                            properties: {
+                                source: {
+                                    type: 'string',
+                                    enum: ['PAGESPEED', 'CRUX']
+                                },
+                                overallCategory: {
+                                    type: 'string',
+                                    nullable: true
+                                },
+                                metrics: {
+                                    $ref: '#/components/schemas/ReportInsightMetrics'
+                                }
+                            }
+                        },
+                        opportunities: {
+                            type: 'array',
+                            maxItems: 5,
+                            items: {
+                                $ref: '#/components/schemas/ReportInsightOpportunity'
+                            }
+                        }
+                    },
+                    required: [
+                        'source',
+                        'strategy',
+                        'testedUrl',
+                        'finalUrl',
+                        'fetchedAt',
+                        'lighthouseVersion',
+                        'scores',
+                        'metrics',
+                        'opportunities'
+                    ]
+                },
+                ReportInsightImportRequest: {
+                    type: 'object',
+                    properties: {
+                        source: {
+                            type: 'string',
+                            enum: ['PAGESPEED'],
+                            example: 'PAGESPEED'
+                        },
+                        url: {
+                            type: 'string',
+                            format: 'uri',
+                            maxLength: 2048,
+                            example: 'https://example.com/'
+                        },
+                        strategy: {
+                            type: 'string',
+                            enum: ['mobile', 'desktop'],
+                            example: 'mobile'
+                        }
+                    },
+                    required: ['source', 'url', 'strategy']
                 },
                 ErrorResponse: {
                     type: 'object',
@@ -257,6 +477,14 @@ const openApiSpec = swaggerJSDoc({
                             minimum: 0,
                             maximum: 100,
                             example: 82
+                        },
+                        insights: {
+                            nullable: true,
+                            allOf: [
+                                {
+                                    $ref: '#/components/schemas/ReportInsights'
+                                }
+                            ]
                         }
                     },
                     required: [
@@ -302,6 +530,14 @@ const openApiSpec = swaggerJSDoc({
                             minimum: 0,
                             maximum: 100,
                             example: 84
+                        },
+                        insights: {
+                            nullable: true,
+                            allOf: [
+                                {
+                                    $ref: '#/components/schemas/ReportInsights'
+                                }
+                            ]
                         }
                     }
                 }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { reportInsightsSchema } from './report-insights-schema.js';
 
 const scoreSchema = z.number().int().min(0).max(100);
 
@@ -8,7 +9,8 @@ const createReportSchema = z.object({
     accessibilityScore: scoreSchema,
     performanceScore: scoreSchema,
     seoScore: scoreSchema,
-    uxScore: scoreSchema
+    uxScore: scoreSchema,
+    insights: reportInsightsSchema.nullable().optional()
 });
 
 const updateReportSchema = z.object({
@@ -17,7 +19,8 @@ const updateReportSchema = z.object({
     accessibilityScore: scoreSchema.optional(),
     performanceScore: scoreSchema.optional(),
     seoScore: scoreSchema.optional(),
-    uxScore: scoreSchema.optional()
+    uxScore: scoreSchema.optional(),
+    insights: reportInsightsSchema.nullable().optional()
 }).refine(
     (data) =>
         data.title !== undefined ||
@@ -25,7 +28,8 @@ const updateReportSchema = z.object({
         data.accessibilityScore !== undefined ||
         data.performanceScore !== undefined ||
         data.seoScore !== undefined ||
-        data.uxScore !== undefined,
+        data.uxScore !== undefined ||
+        data.insights !== undefined,
     {
         message: 'At least one report field is required'
     }

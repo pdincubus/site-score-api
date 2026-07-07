@@ -11,6 +11,8 @@ const seedUserEmail = process.env.SEED_USER_EMAIL;
 const seedUserPassword = process.env.SEED_USER_PASSWORD;
 const seedDatabaseUrl = process.env.SEED_DATABASE_URL?.trim() || '';
 const allowDestructiveSeed = process.env.ALLOW_DESTRUCTIVE_SEED === 'true';
+const pageSpeedApiKey = process.env.PAGESPEED_API_KEY?.trim() || '';
+const pageSpeedTimeoutMs = Number(process.env.PAGESPEED_TIMEOUT_MS);
 const nodeEnv = process.env.NODE_ENV || 'development';
 
 if (!databaseUrl) {
@@ -42,7 +44,12 @@ const env = {
     seedUserEmail: seedUserEmail || '',
     seedUserPassword: seedUserPassword || '',
     seedDatabaseUrl,
-    allowDestructiveSeed
+    allowDestructiveSeed,
+    pageSpeedApiKey,
+    pageSpeedTimeoutMs:
+        Number.isFinite(pageSpeedTimeoutMs) && pageSpeedTimeoutMs > 0
+            ? pageSpeedTimeoutMs
+            : 15000
 };
 
 export { env };

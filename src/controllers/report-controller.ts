@@ -80,7 +80,8 @@ async function createReport(req: Request, res: Response) {
             accessibilityScore,
             performanceScore,
             seoScore,
-            uxScore
+            uxScore,
+            insights
         } = createReportSchema.parse(req.body);
 
         const ownerId = await getProjectOwnerId(projectId);
@@ -100,7 +101,8 @@ async function createReport(req: Request, res: Response) {
             accessibilityScore,
             performanceScore,
             seoScore,
-            uxScore
+            uxScore,
+            insights
         });
 
         res.status(201).json(report);
@@ -127,7 +129,8 @@ async function updateReport(req: Request, res: Response) {
             accessibilityScore,
             performanceScore,
             seoScore,
-            uxScore
+            uxScore,
+            insights
         } = updateReportSchema.parse(req.body);
 
         const ownerId = await getReportProjectOwnerId(id);
@@ -146,7 +149,8 @@ async function updateReport(req: Request, res: Response) {
             accessibilityScore,
             performanceScore,
             seoScore,
-            uxScore
+            uxScore,
+            insights
         });
 
         if (!updatedReport) {

@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS reports (
     performance_score INTEGER NOT NULL CHECK (performance_score BETWEEN 0 AND 100),
     seo_score INTEGER NOT NULL CHECK (seo_score BETWEEN 0 AND 100),
     ux_score INTEGER NOT NULL CHECK (ux_score BETWEEN 0 AND 100),
+    insights JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

@@ -1,3 +1,5 @@
+import type { ReportInsights } from './report-insights.js';
+
 type Report = {
     id: string;
     projectId: string;
@@ -7,6 +9,7 @@ type Report = {
     performanceScore: number;
     seoScore: number;
     uxScore: number;
+    insights: ReportInsights | null;
     createdAt: string;
 };
 

@@ -29,6 +29,7 @@ type CreateReportInput = {
     performanceScore: number;
     seoScore: number;
     uxScore: number;
+    insights?: unknown;
 };
 
 async function registerUser(input: AuthUserInput) {
@@ -97,7 +98,8 @@ async function createReport(input: CreateReportInput) {
             accessibilityScore: input.accessibilityScore,
             performanceScore: input.performanceScore,
             seoScore: input.seoScore,
-            uxScore: input.uxScore
+            uxScore: input.uxScore,
+            ...(input.insights !== undefined ? { insights: input.insights } : {})
         });
 }
 

@@ -2,7 +2,9 @@ import crypto from 'node:crypto';
 import { pool } from '../db/database.js';
 import type { PaginatedResponse } from '../types/pagination.js';
 import type { Report } from '../types/report.js';
+import type { ReportInsights } from '../types/report-insights.js';
 import type { ReportListQuery } from '../utils/pagination.js';
+import { reportInsightsSchema } from '../validation/report-insights-schema.js';
 
 type ReportRow = {
     id: string;
@@ -13,6 +15,7 @@ type ReportRow = {
     performance_score: number;
     seo_score: number;
     ux_score: number;
+    insights: unknown;
     created_at: Date;
 };
 
@@ -24,6 +27,7 @@ type CreateReportInput = {
     performanceScore: number;
     seoScore: number;
     uxScore: number;
+    insights?: ReportInsights | null;
 };
 
 type UpdateReportInput = {
@@ -33,7 +37,22 @@ type UpdateReportInput = {
     performanceScore?: number;
     seoScore?: number;
     uxScore?: number;
+    insights?: ReportInsights | null;
 };
+
+function parseReportInsights(value: unknown): ReportInsights | null {
+    if (value === null || value === undefined) {
+        return null;
+    }
+
+    const result = reportInsightsSchema.safeParse(value);
+
+    return result.success ? result.data : null;
+}
+
+function serialiseReportInsights(value: ReportInsights | null): string | null {
+    return value === null ? null : JSON.stringify(value);
+}
 
 function mapReportRow(row: ReportRow): Report {
     return {
@@ -45,6 +64,7 @@ function mapReportRow(row: ReportRow): Report {
         performanceScore: row.performance_score,
         seoScore: row.seo_score,
         uxScore: row.ux_score,
+        insights: parseReportInsights(row.insights),
         createdAt: row.created_at.toISOString()
     };
 }
@@ -93,7 +113,7 @@ async function getPaginatedReportsByProjectId(
 
     const result = await pool.query<ReportRow>(
         `
-            SELECT id, project_id, title, summary, accessibility_score, performance_score, seo_score, ux_score, created_at
+            SELECT id, project_id, title, summary, accessibility_score, performance_score, seo_score, ux_score, insights, created_at
             FROM reports
             ${whereClause}
             ORDER BY ${sortColumn} ${sortOrder}
@@ -117,7 +137,7 @@ async function getPaginatedReportsByProjectId(
 async function getReportsByProjectId(projectId: string): Promise<Report[]> {
     const result = await pool.query<ReportRow>(
         `
-            SELECT id, project_id, title, summary, accessibility_score, performance_score, seo_score, ux_score, created_at
+            SELECT id, project_id, title, summary, accessibility_score, performance_score, seo_score, ux_score, insights, created_at
             FROM reports
             WHERE project_id = $1
             ORDER BY created_at DESC
@@ -141,10 +161,11 @@ async function createNewReport(input: CreateReportInput): Promise<Report> {
                 accessibility_score,
                 performance_score,
                 seo_score,
-                ux_score
+                ux_score,
+                insights
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING id, project_id, title, summary, accessibility_score, performance_score, seo_score, ux_score, created_at
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+            RETURNING id, project_id, title, summary, accessibility_score, performance_score, seo_score, ux_score, insights, created_at
         `,
         [
             id,
@@ -154,7 +175,8 @@ async function createNewReport(input: CreateReportInput): Promise<Report> {
             input.accessibilityScore,
             input.performanceScore,
             input.seoScore,
-            input.uxScore
+            input.uxScore,
+            serialiseReportInsights(input.insights ?? null)
         ]
     );
 
@@ -164,7 +186,7 @@ async function createNewReport(input: CreateReportInput): Promise<Report> {
 async function getReportById(id: string): Promise<Report | undefined> {
     const result = await pool.query<ReportRow>(
         `
-            SELECT id, project_id, title, summary, accessibility_score, performance_score, seo_score, ux_score, created_at
+            SELECT id, project_id, title, summary, accessibility_score, performance_score, seo_score, ux_score, insights, created_at
             FROM reports
             WHERE id = $1
             LIMIT 1
@@ -199,7 +221,7 @@ async function getReportProjectOwnerId(reportId: string): Promise<string | undef
 async function updateReportById(id: string, input: UpdateReportInput): Promise<Report | undefined> {
     const existingResult = await pool.query<ReportRow>(
         `
-            SELECT id, project_id, title, summary, accessibility_score, performance_score, seo_score, ux_score, created_at
+            SELECT id, project_id, title, summary, accessibility_score, performance_score, seo_score, ux_score, insights, created_at
             FROM reports
             WHERE id = $1
             LIMIT 1
@@ -219,6 +241,10 @@ async function updateReportById(id: string, input: UpdateReportInput): Promise<R
     const nextPerformanceScore = input.performanceScore ?? existingRow.performance_score;
     const nextSeoScore = input.seoScore ?? existingRow.seo_score;
     const nextUxScore = input.uxScore ?? existingRow.ux_score;
+    const nextInsights =
+        input.insights !== undefined
+            ? input.insights
+            : parseReportInsights(existingRow.insights);
 
     const result = await pool.query<ReportRow>(
         `
@@ -228,9 +254,10 @@ async function updateReportById(id: string, input: UpdateReportInput): Promise<R
                 accessibility_score = $3,
                 performance_score = $4,
                 seo_score = $5,
-                ux_score = $6
-            WHERE id = $7
-            RETURNING id, project_id, title, summary, accessibility_score, performance_score, seo_score, ux_score, created_at
+                ux_score = $6,
+                insights = $7::jsonb
+            WHERE id = $8
+            RETURNING id, project_id, title, summary, accessibility_score, performance_score, seo_score, ux_score, insights, created_at
         `,
         [
             nextTitle,
@@ -239,6 +266,7 @@ async function updateReportById(id: string, input: UpdateReportInput): Promise<R
             nextPerformanceScore,
             nextSeoScore,
             nextUxScore,
+            serialiseReportInsights(nextInsights),
             id
         ]
     );
