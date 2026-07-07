@@ -122,8 +122,8 @@ ALLOW_DESTRUCTIVE_SEED=false
 
 - **`DATABASE_MIGRATION_URL`** — Used only by `npm run migrate` and `npm run migrate:test` (running SQL migrations / DDL). Set this to a direct Postgres connection when your `DATABASE_URL` is pooled or otherwise unsuitable for migrations (for example, a Neon direct URL).
 - **`DATABASE_URL` / `DATABASE_TEST_URL`** — Used by the API at runtime and by seed scripts **by default** (`DATABASE_TEST_URL` when `NODE_ENV=test`, otherwise `DATABASE_URL`).
-- **`SEED_DATABASE_URL`** — Optional. When set, `npm run seed:user`, `npm run seed:dev-data`, and `npm run seed:test-data` connect to this URL instead of the default above. Use it to seed a specific database (for example production) without changing `DATABASE_URL`.
-- **`ALLOW_DESTRUCTIVE_SEED`** — Required as `true` before the bulk dev/test seed scripts can wipe a database when `SEED_DATABASE_URL` is set or `NODE_ENV=production`.
+- **`SEED_DATABASE_URL`** — Optional. When set, `npm run seed:user`, `npm run seed:dev-data`, and `npm run seed:test-data` connect to this URL instead of the default above. Use it sparingly when a seed command must target a specific database without changing `DATABASE_URL`.
+- **`ALLOW_DESTRUCTIVE_SEED`** — Required as `true` before the bulk dev/test seed scripts can wipe a database when `SEED_DATABASE_URL` is set, `NODE_ENV=production`, or the target database host is not local.
 
 You should also keep `.env.example` updated with the same keys but safe placeholder values.
 
@@ -156,6 +156,8 @@ npm run seed:dev-data
 ```
 
 To point seeds at another database without editing `.env`, set `SEED_DATABASE_URL` for that command (see **Which database URL is used where** above).
+
+Bulk seed data is for local and test use only. Do not run `npm run seed:dev-data` or `npm run seed:test-data` as part of production deployment.
 
 ### 5. Start the dev server
 
@@ -508,7 +510,9 @@ The bulk seed scripts delete existing rows before inserting a small deterministi
 - projects
 - reports
 
-If `SEED_DATABASE_URL` is set or `NODE_ENV=production`, set `ALLOW_DESTRUCTIVE_SEED=true` for that command to confirm the target database can be wiped.
+By default, the bulk seed scripts only run without confirmation against local database hosts (`localhost`, `127.0.0.1`, or `::1`) outside production. If `SEED_DATABASE_URL` is set, `NODE_ENV=production`, or the target database host is remote, set `ALLOW_DESTRUCTIVE_SEED=true` for that command to confirm the target database can be wiped.
+
+Do not run the bulk seed scripts as part of production deployment. Production should run migrations only, then use real user-created data or a deliberately created admin user.
 
 This is useful for:
 - Bruno testing

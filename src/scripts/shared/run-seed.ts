@@ -1,16 +1,37 @@
 import type { Pool } from 'pg';
 import { env } from '../../config/env.js';
+import { getSeedConnectionString } from '../../db/seed-database.js';
 import { buildSeedData } from './seed-dataset.js';
 
 type DestructiveSeedSafetyOptions = {
     nodeEnv: string;
+    connectionString: string;
     seedDatabaseUrl: string;
     allowDestructiveSeed: boolean;
 };
 
+const localDatabaseHosts = new Set(['localhost', '127.0.0.1', '::1']);
+
+function getDatabaseHost(connectionString: string): string | null {
+    try {
+        const url = new URL(connectionString);
+
+        return url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+    } catch {
+        return null;
+    }
+}
+
+function isLocalDatabaseConnection(connectionString: string): boolean {
+    const host = getDatabaseHost(connectionString);
+
+    return host !== null && localDatabaseHosts.has(host);
+}
+
 function assertDestructiveSeedAllowed(options: DestructiveSeedSafetyOptions) {
+    const isRemoteTarget = !isLocalDatabaseConnection(options.connectionString);
     const requiresExplicitApproval =
-        options.nodeEnv === 'production' || options.seedDatabaseUrl !== '';
+        options.nodeEnv === 'production' || options.seedDatabaseUrl !== '' || isRemoteTarget;
 
     if (!requiresExplicitApproval || options.allowDestructiveSeed) {
         return;
@@ -24,6 +45,7 @@ function assertDestructiveSeedAllowed(options: DestructiveSeedSafetyOptions) {
 async function runSeed(pool: Pool, label: string) {
     assertDestructiveSeedAllowed({
         nodeEnv: env.nodeEnv,
+        connectionString: getSeedConnectionString(),
         seedDatabaseUrl: env.seedDatabaseUrl,
         allowDestructiveSeed: env.allowDestructiveSeed
     });
