@@ -9,8 +9,15 @@ describe('Project routes', () => {
         await clearTables();
     });
 
-    it('returns an empty array when there are no projects', async () => {
-        const response = await request(app).get('/projects');
+    it('returns an empty array when the authenticated user has no projects', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
+
+        const response = await request(app)
+            .get('/projects')
+            .set('Cookie', cookie);
 
         expect(response.status).toBe(200);
         expect(response.body).toEqual({
@@ -21,6 +28,15 @@ describe('Project routes', () => {
                 total: 0,
                 totalPages: 0
             }
+        });
+    });
+
+    it('rejects project listing when not authenticated', async () => {
+        const response = await request(app).get('/projects');
+
+        expect(response.status).toBe(401);
+        expect(response.body).toEqual({
+            error: 'Not authenticated'
         });
     });
 
@@ -99,7 +115,7 @@ describe('Project routes', () => {
         });
     });
 
-    it('gets a project by id', async () => {
+    it('gets an owned project by id', async () => {
         const cookie = await registerAndLoginAs({
             name: 'Phil',
             email: 'phil@example.com'
@@ -113,17 +129,34 @@ describe('Project routes', () => {
 
         const projectId = createResponse.body.id;
 
-        const response = await request(app).get(`/projects/${projectId}`);
+        const response = await request(app)
+            .get(`/projects/${projectId}`)
+            .set('Cookie', cookie);
 
         expect(response.status).toBe(200);
         expect(response.body.id).toBe(projectId);
         expect(response.body.name).toBe('Find me');
     });
 
-    it('returns 404 for a missing project', async () => {
-        const response = await request(app).get(
-            '/projects/22222222-2222-2222-2222-222222222222'
-        );
+    it('rejects project lookup when not authenticated', async () => {
+        const response = await request(app)
+            .get('/projects/22222222-2222-2222-2222-222222222222');
+
+        expect(response.status).toBe(401);
+        expect(response.body).toEqual({
+            error: 'Not authenticated'
+        });
+    });
+
+    it('returns 404 for a missing project while authenticated', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
+
+        const response = await request(app)
+            .get('/projects/22222222-2222-2222-2222-222222222222')
+            .set('Cookie', cookie);
 
         expect(response.status).toBe(404);
         expect(response.body).toEqual({
@@ -201,7 +234,9 @@ describe('Project routes', () => {
 
         expect(deleteResponse.status).toBe(204);
 
-        const getResponse = await request(app).get(`/projects/${projectId}`);
+        const getResponse = await request(app)
+            .get(`/projects/${projectId}`)
+            .set('Cookie', cookie);
         expect(getResponse.status).toBe(404);
     });
 
@@ -282,6 +317,66 @@ describe('Project routes', () => {
         });
     });
 
+    it('does not include other users projects in the project list', async () => {
+        const ownerCookie = await registerAndLoginAs({
+            name: 'Owner',
+            email: 'owner@example.com'
+        });
+
+        await createProject({
+            cookie: ownerCookie,
+            name: 'Owner project',
+            url: 'https://owner-list-project.com'
+        });
+
+        const otherUserCookie = await registerAndLoginAs({
+            name: 'Other user',
+            email: 'other-list@example.com'
+        });
+
+        await createProject({
+            cookie: otherUserCookie,
+            name: 'Other project',
+            url: 'https://other-list-project.com'
+        });
+
+        const response = await request(app)
+            .get('/projects')
+            .set('Cookie', ownerCookie);
+
+        expect(response.status).toBe(200);
+        expect(response.body.data).toHaveLength(1);
+        expect(response.body.data[0].name).toBe('Owner project');
+        expect(response.body.pagination.total).toBe(1);
+    });
+
+    it('rejects project lookup by a different authenticated user', async () => {
+        const ownerCookie = await registerAndLoginAs({
+            name: 'Owner',
+            email: 'owner-read@example.com'
+        });
+
+        const createResponse = await createProject({
+            cookie: ownerCookie,
+            name: 'Owner read project',
+            url: 'https://owner-read-project.com'
+        });
+
+        const otherUserCookie = await registerAndLoginAs({
+            name: 'Other user',
+            email: 'other-read@example.com'
+        });
+
+        const response = await request(app)
+            .get(`/projects/${createResponse.body.id}`)
+            .set('Cookie', otherUserCookie);
+
+        expect(response.status).toBe(403);
+        expect(response.body).toEqual({
+            error: 'Forbidden'
+        });
+    });
+
     it('filters projects by search term', async () => {
         const cookie = await registerAndLoginAs({
             name: 'Phil',
@@ -300,7 +395,9 @@ describe('Project routes', () => {
             url: 'https://another-project.com'
         });
     
-        const response = await request(app).get('/projects?search=site');
+        const response = await request(app)
+            .get('/projects?search=site')
+            .set('Cookie', cookie);
     
         expect(response.status).toBe(200);
         expect(response.body.data).toHaveLength(1);
@@ -326,7 +423,9 @@ describe('Project routes', () => {
             url: 'https://alpha-project.com'
         });
     
-        const response = await request(app).get('/projects?sort=name&order=asc');
+        const response = await request(app)
+            .get('/projects?sort=name&order=asc')
+            .set('Cookie', cookie);
     
         expect(response.status).toBe(200);
         expect(response.body.data[0].name).toBe('Alpha Project');
@@ -357,7 +456,9 @@ describe('Project routes', () => {
             url: 'https://project-three.com'
         });
     
-        const response = await request(app).get('/projects?page=1&limit=2');
+        const response = await request(app)
+            .get('/projects?page=1&limit=2')
+            .set('Cookie', cookie);
     
         expect(response.status).toBe(200);
         expect(response.body.data).toHaveLength(2);

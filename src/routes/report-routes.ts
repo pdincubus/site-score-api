@@ -15,9 +15,11 @@ const reportRoutes = Router();
  * @openapi
  * /projects/{id}/reports:
  *   get:
- *     summary: Get reports for a project
+ *     summary: Get reports for an owned project
  *     tags:
  *       - Reports
+ *     security:
+ *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -60,8 +62,29 @@ const reportRoutes = Router();
  *             - asc
  *             - desc
  *           example: desc
+ *     responses:
+ *       200:
+ *         description: Paginated list of reports
+ *       401:
+ *         description: Not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Forbidden
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Project not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-reportRoutes.get('/projects/:id/reports', asyncHandler(getProjectReports));
+reportRoutes.get('/projects/:id/reports', asyncHandler(requireAuth), asyncHandler(getProjectReports));
 
 /**
  * @openapi
@@ -122,9 +145,11 @@ reportRoutes.post('/projects/:id/reports', asyncHandler(requireAuth), asyncHandl
  * @openapi
  * /reports/{id}:
  *   get:
- *     summary: Get a single report by id
+ *     summary: Get an owned report by id
  *     tags:
  *       - Reports
+ *     security:
+ *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -144,8 +169,20 @@ reportRoutes.post('/projects/:id/reports', asyncHandler(requireAuth), asyncHandl
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Forbidden
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-reportRoutes.get('/reports/:id', asyncHandler(getReportById));
+reportRoutes.get('/reports/:id', asyncHandler(requireAuth), asyncHandler(getReportById));
 
 /**
  * @openapi

@@ -19,18 +19,33 @@ function getSingleParam(value: string | string[]): string {
 }
 
 async function getProjects(req: Request, res: Response) {
+    if (!req.currentUser) {
+        throw new AppError('Not authenticated', 401);
+    }
+
     const query = getProjectListQuery(req.query as Record<string, unknown>);
-    const projects = await getPaginatedProjects(query);
+    const projects = await getPaginatedProjects(query, req.currentUser.id);
 
     res.status(200).json(projects);
 }
 
 async function getProjectById(req: Request, res: Response) {
     const id = getSingleParam(req.params.id);
+
+    if (!req.currentUser) {
+        throw new AppError('Not authenticated', 401);
+    }
+
     const project = await getProjectByIdFromService(id);
 
     if (!project) {
         throw new AppError('Project not found', 404);
+    }
+
+    const ownerId = await getProjectOwnerId(id);
+
+    if (ownerId !== req.currentUser.id) {
+        throw new AppError('Forbidden', 403);
     }
 
     res.status(200).json(project);

@@ -2,6 +2,8 @@ import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
 import { getSeedPool } from '../db/seed-database.js';
 
+const PASSWORD_SALT_ROUNDS = 12;
+
 async function seed() {
     const pool = getSeedPool();
 
@@ -29,7 +31,7 @@ async function seed() {
             return;
         }
 
-        const passwordHash = await bcrypt.hash(password, 10);
+        const passwordHash = await bcrypt.hash(password, PASSWORD_SALT_ROUNDS);
         const id = crypto.randomUUID();
 
         await pool.query(

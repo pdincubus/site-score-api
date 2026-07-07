@@ -4,18 +4,30 @@ import swaggerUi from 'swagger-ui-express';
 import { openApiSpec } from './config/openapi.js';
 import cors from 'cors';
 
+import { env } from './config/env.js';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error-middleware.js';
+import { createRateLimit } from './middleware/rate-limit.js';
 import { requestLogger } from './middleware/request-logger.js';
+import { securityHeaders } from './middleware/security-headers.js';
 import { projectRoutes } from './routes/project-routes.js';
 import { authRoutes } from './routes/auth-routes.js';
 import { reportRoutes } from './routes/report-routes.js';
 
 const app = express();
 
+app.disable('x-powered-by');
+app.set('trust proxy', env.isProduction ? 1 : false);
+
 const allowedOrigins = [
     'http://localhost:5173',
     'https://site-score-ui.vercel.app'
 ];
+
+const authRateLimit = createRateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: env.nodeEnv === 'test' ? 1000 : 20,
+    message: 'Too many authentication attempts, please try again later'
+});
 
 app.use(
     cors({
@@ -31,7 +43,8 @@ app.use(
     })
 );
 
-app.use(express.json());
+app.use(securityHeaders);
+app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
 app.use(requestLogger);
 
@@ -49,6 +62,8 @@ app.get('/', (_req, res) => {
 });
 
 app.use('/projects', projectRoutes);
+app.use('/auth/login', authRateLimit);
+app.use('/auth/register', authRateLimit);
 app.use('/auth', authRoutes);
 app.use(reportRoutes);
 

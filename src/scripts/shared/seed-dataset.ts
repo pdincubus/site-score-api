@@ -34,13 +34,14 @@ type SeedData = {
 
 const PROJECT_COUNT = 75;
 const REPORT_COUNT = 500;
+const PASSWORD_SALT_ROUNDS = 12;
 
 function buildScore(seed: number, offset: number): number {
     return 60 + ((seed * 13 + offset * 7) % 40);
 }
 
 async function buildSeedData(): Promise<SeedData> {
-    const passwordHash = await bcrypt.hash('secret123', 10);
+    const passwordHash = await bcrypt.hash('secret123', PASSWORD_SALT_ROUNDS);
 
     const philUser: SeedUser = {
         id: crypto.randomUUID(),

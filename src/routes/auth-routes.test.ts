@@ -81,6 +81,21 @@ describe('Auth routes', () => {
         });
     });
 
+    it('rejects registration with a short password', async () => {
+        const response = await request(app)
+            .post('/auth/register')
+            .send({
+                name: 'Phil',
+                email: 'phil@example.com',
+                password: 'short'
+            });
+
+        expect(response.status).toBe(400);
+        expect(response.body).toEqual({
+            error: 'Password must be at least 8 characters'
+        });
+    });
+
     it('logs in a registered user', async () => {
         await registerUser({
             name: 'Phil',

@@ -10,6 +10,7 @@ const seedUserName = process.env.SEED_USER_NAME;
 const seedUserEmail = process.env.SEED_USER_EMAIL;
 const seedUserPassword = process.env.SEED_USER_PASSWORD;
 const seedDatabaseUrl = process.env.SEED_DATABASE_URL?.trim() || '';
+const allowDestructiveSeed = process.env.ALLOW_DESTRUCTIVE_SEED === 'true';
 const nodeEnv = process.env.NODE_ENV || 'development';
 
 if (!databaseUrl) {
@@ -40,7 +41,8 @@ const env = {
     seedUserName: seedUserName || '',
     seedUserEmail: seedUserEmail || '',
     seedUserPassword: seedUserPassword || '',
-    seedDatabaseUrl
+    seedDatabaseUrl,
+    allowDestructiveSeed
 };
 
 export { env };

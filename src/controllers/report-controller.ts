@@ -19,6 +19,21 @@ function getSingleParam(value: string | string[]): string {
 
 async function getProjectReports(req: Request, res: Response) {
     const projectId = getSingleParam(req.params.id);
+
+    if (!req.currentUser) {
+        throw new AppError('Not authenticated', 401);
+    }
+
+    const ownerId = await getProjectOwnerId(projectId);
+
+    if (!ownerId) {
+        throw new AppError('Project not found', 404);
+    }
+
+    if (ownerId !== req.currentUser.id) {
+        throw new AppError('Forbidden', 403);
+    }
+
     const query = getReportListQuery(req.query as Record<string, unknown>);
     const reports = await getPaginatedReportsByProjectId(projectId, query);
 
@@ -27,6 +42,21 @@ async function getProjectReports(req: Request, res: Response) {
 
 async function getReportById(req: Request, res: Response) {
     const id = getSingleParam(req.params.id);
+
+    if (!req.currentUser) {
+        throw new AppError('Not authenticated', 401);
+    }
+
+    const ownerId = await getReportProjectOwnerId(id);
+
+    if (!ownerId) {
+        throw new AppError('Report not found', 404);
+    }
+
+    if (ownerId !== req.currentUser.id) {
+        throw new AppError('Forbidden', 403);
+    }
+
     const report = await getReportByIdFromService(id);
 
     if (!report) {

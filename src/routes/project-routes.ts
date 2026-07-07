@@ -15,9 +15,11 @@ const projectRoutes = Router();
  * @openapi
  * /projects:
  *   get:
- *     summary: Get all projects
+ *     summary: Get current user's projects
  *     tags:
  *       - Projects
+ *     security:
+ *       - cookieAuth: []
  *     parameters:
  *       - in: query
  *         name: page
@@ -90,16 +92,24 @@ const projectRoutes = Router();
  *               required:
  *                 - data
  *                 - pagination
+ *       401:
+ *         description: Not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-projectRoutes.get('/', asyncHandler(getProjects));
+projectRoutes.get('/', asyncHandler(requireAuth), asyncHandler(getProjects));
 
 /**
  * @openapi
  * /projects/{id}:
  *   get:
- *     summary: Get project by id
+ *     summary: Get owned project by id
  *     tags:
  *       - Projects
+ *     security:
+ *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -119,8 +129,20 @@ projectRoutes.get('/', asyncHandler(getProjects));
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Forbidden
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-projectRoutes.get('/:id', asyncHandler(getProjectById));
+projectRoutes.get('/:id', asyncHandler(requireAuth), asyncHandler(getProjectById));
 
 /**
  * @openapi

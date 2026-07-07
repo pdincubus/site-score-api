@@ -20,27 +20,28 @@ It was built as a practical learning and portfolio project to strengthen back en
 - Session records stored in PostgreSQL
 
 ### Projects
-- List all projects
-- Get a single project by id
+- List authenticated user's projects
+- Get an owned project by id
 - Create a project when authenticated
 - Update a project when authenticated and authorised
 - Delete a project when authenticated and authorised
 - Paginated list endpoint with `page` and `limit`
 
 ### Reports
-- List reports for a project
-- Get a single report by id
+- List reports for an owned project
+- Get an owned report by id
 - Create a report for a project when authenticated and authorised
 - Update a report when authenticated and authorised
 - Delete a report when authenticated and authorised
 - Paginated list endpoint for project reports with `page` and `limit`
 
 ### Security and access rules
+- Project and report read routes require authentication
+- Users can only read their own projects and reports
 - Project write routes require authentication
 - Only the project owner can update or delete their project
 - Only the project owner can create reports for that project
 - Only the project owner can update or delete those reports
-- Project and report reads are public
 
 ## Tech stack
 
@@ -114,6 +115,7 @@ SEED_DATABASE_URL=
 SEED_USER_NAME=Phil
 SEED_USER_EMAIL=phil@example.com
 SEED_USER_PASSWORD=secret123
+ALLOW_DESTRUCTIVE_SEED=false
 ```
 
 **Which database URL is used where**
@@ -121,6 +123,7 @@ SEED_USER_PASSWORD=secret123
 - **`DATABASE_MIGRATION_URL`** — Used only by `npm run migrate` and `npm run migrate:test` (running SQL migrations / DDL). Set this to a direct Postgres connection when your `DATABASE_URL` is pooled or otherwise unsuitable for migrations (for example, a Neon direct URL).
 - **`DATABASE_URL` / `DATABASE_TEST_URL`** — Used by the API at runtime and by seed scripts **by default** (`DATABASE_TEST_URL` when `NODE_ENV=test`, otherwise `DATABASE_URL`).
 - **`SEED_DATABASE_URL`** — Optional. When set, `npm run seed:user`, `npm run seed:dev-data`, and `npm run seed:test-data` connect to this URL instead of the default above. Use it to seed a specific database (for example production) without changing `DATABASE_URL`.
+- **`ALLOW_DESTRUCTIVE_SEED`** — Required as `true` before the bulk dev/test seed scripts can wipe a database when `SEED_DATABASE_URL` is set or `NODE_ENV=production`.
 
 You should also keep `.env.example` updated with the same keys but safe placeholder values.
 
@@ -285,11 +288,14 @@ Response:
 ### Project routes
 
 #### `GET /projects`
-Get a paginated list of projects.
+Get a paginated list of the authenticated user's projects.
 
 Supported query params:
 - `page`
 - `limit`
+- `search`
+- `sort`
+- `order`
 
 Response example:
 
@@ -313,7 +319,7 @@ Response example:
 ```
 
 #### `GET /projects/:id`
-Get a single project by id.
+Get an owned project by id.
 
 #### `POST /projects`
 Create a project. Requires authentication.
@@ -349,11 +355,14 @@ Response:
 ### Report routes
 
 #### `GET /projects/:id/reports`
-Get a paginated list of reports for a project.
+Get a paginated list of reports for an owned project.
 
 Supported query params:
 - `page`
 - `limit`
+- `search`
+- `sort`
+- `order`
 
 Response example:
 
@@ -398,7 +407,7 @@ Request body example:
 ```
 
 #### `GET /reports/:id`
-Get a single report by id.
+Get an owned report by id.
 
 #### `PATCH /reports/:id`
 Update a report. Requires authentication and ownership.
@@ -468,6 +477,7 @@ Current migrations include:
 - `001_initial_schema.sql`
 - `002_add_project_user_id.sql`
 - `003_add_report_score_checks.sql`
+- `004_add_read_path_indexes.sql`
 
 ## Seed data
 
@@ -493,10 +503,12 @@ npm run seed:dev-data
 npm run seed:test-data
 ```
 
-These scripts create a small deterministic dataset of:
+The bulk seed scripts delete existing rows before inserting a small deterministic dataset of:
 - users
 - projects
 - reports
+
+If `SEED_DATABASE_URL` is set or `NODE_ENV=production`, set `ALLOW_DESTRUCTIVE_SEED=true` for that command to confirm the target database can be wiped.
 
 This is useful for:
 - Bruno testing
@@ -518,10 +530,10 @@ The session cookie is environment-aware.
 
 ### Production
 - `httpOnly: true`
-- `sameSite: 'lax'`
+- `sameSite: 'none'`
 - `secure: true`
 
-This keeps local development simple while making production safer over HTTPS.
+This keeps local development simple while allowing the deployed UI to send cookies to the deployed API over HTTPS.
 
 ## Documentation
 

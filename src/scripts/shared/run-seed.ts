@@ -1,7 +1,33 @@
 import type { Pool } from 'pg';
+import { env } from '../../config/env.js';
 import { buildSeedData } from './seed-dataset.js';
 
+type DestructiveSeedSafetyOptions = {
+    nodeEnv: string;
+    seedDatabaseUrl: string;
+    allowDestructiveSeed: boolean;
+};
+
+function assertDestructiveSeedAllowed(options: DestructiveSeedSafetyOptions) {
+    const requiresExplicitApproval =
+        options.nodeEnv === 'production' || options.seedDatabaseUrl !== '';
+
+    if (!requiresExplicitApproval || options.allowDestructiveSeed) {
+        return;
+    }
+
+    throw new Error(
+        'Destructive seed blocked. Set ALLOW_DESTRUCTIVE_SEED=true to confirm this database can be wiped.'
+    );
+}
+
 async function runSeed(pool: Pool, label: string) {
+    assertDestructiveSeedAllowed({
+        nodeEnv: env.nodeEnv,
+        seedDatabaseUrl: env.seedDatabaseUrl,
+        allowDestructiveSeed: env.allowDestructiveSeed
+    });
+
     const seedData = await buildSeedData();
 
     await pool.query('BEGIN');
@@ -102,4 +128,4 @@ async function runSeed(pool: Pool, label: string) {
     }
 }
 
-export { runSeed };
+export { runSeed, assertDestructiveSeedAllowed };

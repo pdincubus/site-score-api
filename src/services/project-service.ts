@@ -34,7 +34,8 @@ function mapProjectRow(row: ProjectRow): Project {
 }
 
 async function getPaginatedProjects(
-    query: ProjectListQuery
+    query: ProjectListQuery,
+    userId: string
 ): Promise<PaginatedResponse<Project>> {
     const sortColumn = query.sort === 'name' ? 'name' : 'created_at';
     const sortOrder = query.order === 'asc' ? 'ASC' : 'DESC';
@@ -42,13 +43,21 @@ async function getPaginatedProjects(
 
     const whereClause =
         searchTerm === ''
-            ? ''
+            ? `
+                WHERE user_id = $1
+            `
             : `
-                WHERE name ILIKE $1
-                   OR url ILIKE $1
+                WHERE user_id = $1
+                  AND (
+                    name ILIKE $2
+                    OR url ILIKE $2
+                  )
             `;
 
-    const totalParams = searchTerm === '' ? [] : [`%${searchTerm}%`];
+    const totalParams =
+        searchTerm === ''
+            ? [userId]
+            : [userId, `%${searchTerm}%`];
 
     const totalResult = await pool.query<{ count: string }>(
         `
@@ -63,8 +72,8 @@ async function getPaginatedProjects(
 
     const dataParams =
         searchTerm === ''
-            ? [query.limit, query.offset]
-            : [`%${searchTerm}%`, query.limit, query.offset];
+            ? [userId, query.limit, query.offset]
+            : [userId, `%${searchTerm}%`, query.limit, query.offset];
 
     const result = await pool.query<ProjectRow>(
         `
@@ -72,8 +81,8 @@ async function getPaginatedProjects(
             FROM projects
             ${whereClause}
             ORDER BY ${sortColumn} ${sortOrder}
-            LIMIT $${searchTerm === '' ? 1 : 2}
-            OFFSET $${searchTerm === '' ? 2 : 3}
+            LIMIT $${searchTerm === '' ? 2 : 3}
+            OFFSET $${searchTerm === '' ? 3 : 4}
         `,
         dataParams
     );

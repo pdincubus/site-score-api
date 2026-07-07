@@ -12,7 +12,7 @@ const registerSchema = z.object({
     password: z.string({
         error: (issue) =>
             issue.input === undefined ? 'Password is required' : 'Password must be a string'
-    }).trim().min(1, 'Password is required')
+    }).trim().min(1, 'Password is required').min(8, 'Password must be at least 8 characters')
 });
 
 const loginSchema = z.object({

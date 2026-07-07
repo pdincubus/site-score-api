@@ -40,6 +40,8 @@ type LoginInput = {
     password: string;
 };
 
+const PASSWORD_SALT_ROUNDS = 12;
+
 function addDays(date: Date, days: number): Date {
     const nextDate = new Date(date);
     nextDate.setDate(nextDate.getDate() + days);
@@ -65,7 +67,7 @@ async function registerUser(input: RegisterInput): Promise<User> {
         throw new AppError('A user with this email already exists', 409);
     }
 
-    const passwordHash = await bcrypt.hash(trimmedPassword, 10);
+    const passwordHash = await bcrypt.hash(trimmedPassword, PASSWORD_SALT_ROUNDS);
     const id = crypto.randomUUID();
 
     const result = await pool.query<UserRow>(

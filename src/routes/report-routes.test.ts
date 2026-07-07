@@ -27,7 +27,9 @@ describe('Report routes', () => {
 
         const projectId = createProjectResponse.body.id;
 
-        const response = await request(app).get(`/projects/${projectId}/reports`);
+        const response = await request(app)
+            .get(`/projects/${projectId}/reports`)
+            .set('Cookie', cookie);
 
         expect(response.status).toBe(200);
         expect(response.body).toEqual({
@@ -38,6 +40,27 @@ describe('Report routes', () => {
                 total: 0,
                 totalPages: 0
             }
+        });
+    });
+
+    it('rejects report listing when not authenticated', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
+
+        const createProjectResponse = await createProject({
+            cookie,
+            name: 'Protected report list project',
+            url: 'https://protected-report-list.com'
+        });
+
+        const response = await request(app)
+            .get(`/projects/${createProjectResponse.body.id}/reports`);
+
+        expect(response.status).toBe(401);
+        expect(response.body).toEqual({
+            error: 'Not authenticated'
         });
     });
 
@@ -139,7 +162,7 @@ describe('Report routes', () => {
         });
     });
 
-    it('returns reports for a project', async () => {
+    it('returns reports for an owned project', async () => {
         const cookie = await registerAndLoginAs({
             name: 'Phil',
             email: 'phil@example.com'
@@ -164,7 +187,9 @@ describe('Report routes', () => {
             uxScore: 82
         });
 
-        const response = await request(app).get(`/projects/${projectId}/reports`);
+        const response = await request(app)
+            .get(`/projects/${projectId}/reports`)
+            .set('Cookie', cookie);
 
         expect(response.status).toBe(200);
         expect(response.body.data).toHaveLength(1);
@@ -172,7 +197,7 @@ describe('Report routes', () => {
         expect(response.body.data[0].title).toBe('Homepage audit');
     });
 
-    it('returns a report by id', async () => {
+    it('returns an owned report by id', async () => {
         const cookie = await registerAndLoginAs({
             name: 'Phil',
             email: 'phil@example.com'
@@ -199,17 +224,34 @@ describe('Report routes', () => {
 
         const reportId = createReportResponse.body.id;
 
-        const response = await request(app).get(`/reports/${reportId}`);
+        const response = await request(app)
+            .get(`/reports/${reportId}`)
+            .set('Cookie', cookie);
 
         expect(response.status).toBe(200);
         expect(response.body.id).toBe(reportId);
         expect(response.body.title).toBe('Single report');
     });
 
-    it('returns 404 for a missing report', async () => {
-        const response = await request(app).get(
-            '/reports/22222222-2222-2222-2222-222222222222'
-        );
+    it('rejects report lookup when not authenticated', async () => {
+        const response = await request(app)
+            .get('/reports/22222222-2222-2222-2222-222222222222');
+
+        expect(response.status).toBe(401);
+        expect(response.body).toEqual({
+            error: 'Not authenticated'
+        });
+    });
+
+    it('returns 404 for a missing report while authenticated', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
+
+        const response = await request(app)
+            .get('/reports/22222222-2222-2222-2222-222222222222')
+            .set('Cookie', cookie);
 
         expect(response.status).toBe(404);
         expect(response.body).toEqual({
@@ -375,7 +417,9 @@ describe('Report routes', () => {
 
         expect(deleteResponse.status).toBe(204);
 
-        const getResponse = await request(app).get(`/reports/${reportId}`);
+        const getResponse = await request(app)
+            .get(`/reports/${reportId}`)
+            .set('Cookie', cookie);
         expect(getResponse.status).toBe(404);
     });
 
@@ -413,6 +457,86 @@ describe('Report routes', () => {
 
         const response = await request(app)
             .delete(`/reports/${reportId}`)
+            .set('Cookie', otherUserCookie);
+
+        expect(response.status).toBe(403);
+        expect(response.body).toEqual({
+            error: 'Forbidden'
+        });
+    });
+
+    it('rejects report listing by a different authenticated user', async () => {
+        const ownerCookie = await registerAndLoginAs({
+            name: 'Owner',
+            email: 'owner-list-reports@example.com'
+        });
+
+        const createProjectResponse = await createProject({
+            cookie: ownerCookie,
+            name: 'Owner report list project',
+            url: 'https://owner-report-list-project.com'
+        });
+
+        const projectId = createProjectResponse.body.id;
+
+        await createReport({
+            cookie: ownerCookie,
+            projectId,
+            title: 'Owner report',
+            summary: 'Owner summary',
+            accessibilityScore: 70,
+            performanceScore: 71,
+            seoScore: 72,
+            uxScore: 73
+        });
+
+        const otherUserCookie = await registerAndLoginAs({
+            name: 'Other user',
+            email: 'other-list-reports@example.com'
+        });
+
+        const response = await request(app)
+            .get(`/projects/${projectId}/reports`)
+            .set('Cookie', otherUserCookie);
+
+        expect(response.status).toBe(403);
+        expect(response.body).toEqual({
+            error: 'Forbidden'
+        });
+    });
+
+    it('rejects report lookup by a different authenticated user', async () => {
+        const ownerCookie = await registerAndLoginAs({
+            name: 'Owner',
+            email: 'owner-read-report@example.com'
+        });
+
+        const createProjectResponse = await createProject({
+            cookie: ownerCookie,
+            name: 'Owner read report project',
+            url: 'https://owner-read-report-project.com'
+        });
+
+        const projectId = createProjectResponse.body.id;
+
+        const createReportResponse = await createReport({
+            cookie: ownerCookie,
+            projectId,
+            title: 'Owner report',
+            summary: 'Owner summary',
+            accessibilityScore: 70,
+            performanceScore: 71,
+            seoScore: 72,
+            uxScore: 73
+        });
+
+        const otherUserCookie = await registerAndLoginAs({
+            name: 'Other user',
+            email: 'other-read-report@example.com'
+        });
+
+        const response = await request(app)
+            .get(`/reports/${createReportResponse.body.id}`)
             .set('Cookie', otherUserCookie);
 
         expect(response.status).toBe(403);
@@ -459,7 +583,7 @@ describe('Report routes', () => {
     
         const response = await request(app).get(
             `/projects/${projectId}/reports?search=checkout`
-        );
+        ).set('Cookie', cookie);
     
         expect(response.status).toBe(200);
         expect(response.body.data).toHaveLength(1);
@@ -505,7 +629,7 @@ describe('Report routes', () => {
     
         const response = await request(app).get(
             `/projects/${projectId}/reports?sort=title&order=asc`
-        );
+        ).set('Cookie', cookie);
     
         expect(response.status).toBe(200);
         expect(response.body.data[0].title).toBe('Alpha audit');
