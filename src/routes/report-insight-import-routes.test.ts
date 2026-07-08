@@ -16,7 +16,12 @@ function createPageSpeedResponse() {
             lighthouseVersion: '13.0.0',
             categories: {
                 performance: {
-                    score: 0.94
+                    score: 0.94,
+                    auditRefs: [
+                        {
+                            id: 'uses-long-cache-ttl'
+                        }
+                    ]
                 },
                 accessibility: {
                     score: 0.98
@@ -25,10 +30,19 @@ function createPageSpeedResponse() {
                     score: 0.92
                 },
                 seo: {
-                    score: 1
+                    score: 1,
+                    auditRefs: [
+                        {
+                            id: 'tap-targets'
+                        }
+                    ]
                 }
             },
             audits: {
+                'total-byte-weight': {
+                    numericValue: 1837056,
+                    displayValue: '1,794 KiB'
+                },
                 'largest-contentful-paint': {
                     numericValue: 1800,
                     displayValue: '1.8 s'
@@ -45,6 +59,30 @@ function createPageSpeedResponse() {
                     details: {
                         type: 'opportunity',
                         overallSavingsMs: 520
+                    }
+                },
+                'uses-long-cache-ttl': {
+                    id: 'uses-long-cache-ttl',
+                    title: 'Uses efficient cache policy on static assets',
+                    displayValue: '4 resources found',
+                    score: 0.5
+                },
+                'tap-targets': {
+                    id: 'tap-targets',
+                    title: 'Tap targets are not sized appropriately',
+                    score: 0
+                },
+                'user-timings': {
+                    details: {
+                        type: 'table',
+                        items: [
+                            {
+                                name: 'app:hydrate',
+                                timingType: 'Measure',
+                                startTime: 690,
+                                duration: 850
+                            }
+                        ]
                     }
                 }
             }
@@ -100,13 +138,47 @@ describe('Report insight import routes', () => {
         expect(response.body.strategy).toBe('mobile');
         expect(response.body.testedUrl).toBe('https://example.com/');
         expect(response.body.scores.performance).toBe(94);
+        expect(response.body.scores.agenticBrowsing).toBeNull();
+        expect(response.body.metrics.pageWeight).toEqual({
+            value: 1837056,
+            unit: 'bytes',
+            displayValue: '1,794 KiB',
+            category: 'performance'
+        });
         expect(response.body.metrics.largestContentfulPaint).toEqual({
             value: 1800,
             unit: 'ms',
             displayValue: '1.8 s',
-            category: null
+            category: 'performance'
         });
         expect(response.body.opportunities).toHaveLength(1);
+        expect(response.body.auditRefs).toEqual([
+            {
+                id: 'uses-long-cache-ttl',
+                title: 'Uses efficient cache policy on static assets',
+                category: 'performance',
+                severity: 'warning',
+                displayValue: '4 resources found',
+                score: 0.5
+            },
+            {
+                id: 'tap-targets',
+                title: 'Tap targets are not sized appropriately',
+                category: 'seo',
+                severity: 'fail',
+                displayValue: null,
+                score: 0
+            }
+        ]);
+        expect(response.body.userTimings).toEqual([
+            {
+                name: 'app:hydrate',
+                entryType: 'measure',
+                startTime: 690,
+                duration: 850,
+                displayValue: '850 ms'
+            }
+        ]);
         expect(fetchMock).toHaveBeenCalledTimes(1);
 
         const reportsResponse = await request(app)

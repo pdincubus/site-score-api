@@ -1,5 +1,10 @@
 import { Router } from 'express';
 import { env } from '../config/env.js';
+import {
+    createReportGroup,
+    getProjectReportGroupTrends,
+    getProjectReportGroups
+} from '../controllers/report-group-controller.js';
 import { importReportInsightsPreview } from '../controllers/report-insight-import-controller.js';
 import {
     createReport,
@@ -19,6 +24,130 @@ const reportInsightImportRateLimit = createRateLimit({
     message: 'Too many PageSpeed imports, please try again later',
     getKey: (req) => `${req.currentUser?.id || 'anonymous'}:${req.params.projectId || 'unknown'}`
 });
+
+/**
+ * @openapi
+ * /projects/{id}/report-groups:
+ *   get:
+ *     summary: Get report groups for an owned project
+ *     tags:
+ *       - Reports
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of report groups
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/ReportGroup'
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Project not found
+ */
+reportRoutes.get(
+    '/projects/:id/report-groups',
+    asyncHandler(requireAuth),
+    asyncHandler(getProjectReportGroups)
+);
+
+/**
+ * @openapi
+ * /projects/{id}/report-groups:
+ *   post:
+ *     summary: Create a report group for an owned project
+ *     tags:
+ *       - Reports
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateReportGroupRequest'
+ *     responses:
+ *       201:
+ *         description: Report group created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ReportGroup'
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Project not found
+ */
+reportRoutes.post(
+    '/projects/:id/report-groups',
+    asyncHandler(requireAuth),
+    asyncHandler(createReportGroup)
+);
+
+/**
+ * @openapi
+ * /projects/{id}/report-group-trends:
+ *   get:
+ *     summary: Get full report group trend history for an owned project
+ *     tags:
+ *       - Reports
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: groupId
+ *         required: false
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of report group trends
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/ReportGroupTrend'
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Project or report group not found
+ */
+reportRoutes.get(
+    '/projects/:id/report-group-trends',
+    asyncHandler(requireAuth),
+    asyncHandler(getProjectReportGroupTrends)
+);
 
 /**
  * @openapi
@@ -53,6 +182,11 @@ const reportInsightImportRateLimit = createRateLimit({
  *         schema:
  *           type: string
  *           example: homepage
+ *       - in: query
+ *         name: groupId
+ *         required: false
+ *         schema:
+ *           type: string
  *       - in: query
  *         name: sort
  *         required: false

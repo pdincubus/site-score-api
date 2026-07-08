@@ -89,6 +89,105 @@ const openApiSpec = swaggerJSDoc({
                     },
                     required: ['id', 'name', 'url', 'createdAt']
                 },
+                ProjectSummaryScores: {
+                    type: 'object',
+                    properties: {
+                        performanceScore: {
+                            type: 'integer',
+                            minimum: 0,
+                            maximum: 100,
+                            example: 94
+                        },
+                        accessibilityScore: {
+                            type: 'integer',
+                            minimum: 0,
+                            maximum: 100,
+                            example: 89
+                        },
+                        seoScore: {
+                            type: 'integer',
+                            minimum: 0,
+                            maximum: 100,
+                            example: 97
+                        },
+                        bestPracticesScore: {
+                            type: 'integer',
+                            minimum: 0,
+                            maximum: 100,
+                            example: 93
+                        },
+                        agenticBrowsingScore: {
+                            type: 'integer',
+                            minimum: 0,
+                            maximum: 100,
+                            example: 84
+                        }
+                    },
+                    required: [
+                        'performanceScore',
+                        'accessibilityScore',
+                        'seoScore',
+                        'bestPracticesScore',
+                        'agenticBrowsingScore'
+                    ]
+                },
+                ProjectSummary: {
+                    type: 'object',
+                    properties: {
+                        reportCount: {
+                            type: 'integer',
+                            minimum: 0,
+                            example: 12
+                        },
+                        reportGroupCount: {
+                            type: 'integer',
+                            minimum: 0,
+                            example: 4
+                        },
+                        latestReportCreatedAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            nullable: true,
+                            example: '2026-07-08T08:00:00.000Z'
+                        },
+                        latestReportTitle: {
+                            type: 'string',
+                            nullable: true,
+                            example: 'Homepage mobile audit'
+                        },
+                        latestScores: {
+                            nullable: true,
+                            allOf: [
+                                {
+                                    $ref: '#/components/schemas/ProjectSummaryScores'
+                                }
+                            ]
+                        }
+                    },
+                    required: [
+                        'reportCount',
+                        'reportGroupCount',
+                        'latestReportCreatedAt',
+                        'latestReportTitle',
+                        'latestScores'
+                    ]
+                },
+                ProjectListItem: {
+                    allOf: [
+                        {
+                            $ref: '#/components/schemas/Project'
+                        },
+                        {
+                            type: 'object',
+                            properties: {
+                                summary: {
+                                    $ref: '#/components/schemas/ProjectSummary'
+                                }
+                            },
+                            required: ['summary']
+                        }
+                    ]
+                },
                 Report: {
                     type: 'object',
                     properties: {
@@ -100,6 +199,19 @@ const openApiSpec = swaggerJSDoc({
                             type: 'string',
                             example: '0fd1f6d1-5a7b-4a8a-a7f8-75d1c59c3e1d'
                         },
+                        groupId: {
+                            type: 'string',
+                            nullable: true,
+                            example: 'e6bc5c14-e05e-4f18-8b27-d9f6da78124f'
+                        },
+                        group: {
+                            nullable: true,
+                            allOf: [
+                                {
+                                    $ref: '#/components/schemas/ReportGroupSummary'
+                                }
+                            ]
+                        },
                         title: {
                             type: 'string',
                             example: 'Homepage audit'
@@ -107,6 +219,12 @@ const openApiSpec = swaggerJSDoc({
                         summary: {
                             type: 'string',
                             example: 'Initial report for homepage checks'
+                        },
+                        pageUrl: {
+                            type: 'string',
+                            format: 'uri',
+                            maxLength: 2048,
+                            example: 'https://example.com/'
                         },
                         accessibilityScore: {
                             type: 'integer',
@@ -126,17 +244,31 @@ const openApiSpec = swaggerJSDoc({
                             maximum: 100,
                             example: 78
                         },
-                        uxScore: {
+                        bestPracticesScore: {
                             type: 'integer',
                             minimum: 0,
                             maximum: 100,
-                            example: 82
+                            example: 92
+                        },
+                        agenticBrowsingScore: {
+                            type: 'integer',
+                            minimum: 0,
+                            maximum: 100,
+                            example: 80
                         },
                         insights: {
                             nullable: true,
                             allOf: [
                                 {
                                     $ref: '#/components/schemas/ReportInsights'
+                                }
+                            ]
+                        },
+                        comparison: {
+                            nullable: true,
+                            allOf: [
+                                {
+                                    $ref: '#/components/schemas/ReportComparison'
                                 }
                             ]
                         },
@@ -149,15 +281,273 @@ const openApiSpec = swaggerJSDoc({
                     required: [
                         'id',
                         'projectId',
+                        'groupId',
+                        'group',
                         'title',
                         'summary',
+                        'pageUrl',
                         'accessibilityScore',
                         'performanceScore',
                         'seoScore',
-                        'uxScore',
+                        'bestPracticesScore',
+                        'agenticBrowsingScore',
                         'insights',
+                        'comparison',
                         'createdAt'
                     ]
+                },
+                ReportScoreComparison: {
+                    type: 'object',
+                    properties: {
+                        performanceScore: {
+                            type: 'integer',
+                            example: 7
+                        },
+                        accessibilityScore: {
+                            type: 'integer',
+                            example: 0
+                        },
+                        seoScore: {
+                            type: 'integer',
+                            example: -2
+                        },
+                        bestPracticesScore: {
+                            type: 'integer',
+                            example: 4
+                        },
+                        agenticBrowsingScore: {
+                            type: 'integer',
+                            example: -3
+                        }
+                    },
+                    required: [
+                        'performanceScore',
+                        'accessibilityScore',
+                        'seoScore',
+                        'bestPracticesScore',
+                        'agenticBrowsingScore'
+                    ]
+                },
+                ReportInsightUserTimingComparison: {
+                    type: 'object',
+                    properties: {
+                        name: {
+                            type: 'string',
+                            example: 'app:hydrate'
+                        },
+                        entryType: {
+                            type: 'string',
+                            enum: ['mark', 'measure'],
+                            example: 'measure'
+                        },
+                        currentValue: {
+                            type: 'number',
+                            nullable: true,
+                            example: 850
+                        },
+                        previousValue: {
+                            type: 'number',
+                            nullable: true,
+                            example: 1270
+                        },
+                        delta: {
+                            type: 'number',
+                            nullable: true,
+                            example: -420
+                        },
+                        unit: {
+                            type: 'string',
+                            enum: ['ms'],
+                            example: 'ms'
+                        },
+                        previousReportId: {
+                            type: 'string',
+                            example: 'f4d90c3c-6577-4cd4-8fc4-5d63c2f8a4a8'
+                        },
+                        previousCreatedAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            example: '2026-06-08T09:30:00.000Z'
+                        }
+                    },
+                    required: ['name', 'entryType', 'currentValue', 'previousValue', 'delta', 'unit']
+                },
+                ReportComparison: {
+                    type: 'object',
+                    properties: {
+                        previousReportId: {
+                            type: 'string',
+                            example: 'f4d90c3c-6577-4cd4-8fc4-5d63c2f8a4a8'
+                        },
+                        previousCreatedAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            example: '2026-06-08T09:30:00.000Z'
+                        },
+                        scores: {
+                            $ref: '#/components/schemas/ReportScoreComparison'
+                        },
+                        userTimings: {
+                            type: 'array',
+                            items: {
+                                $ref: '#/components/schemas/ReportInsightUserTimingComparison'
+                            }
+                        }
+                    },
+                    required: ['previousReportId', 'previousCreatedAt', 'scores']
+                },
+                ReportTrendPoint: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            example: 'f4d90c3c-6577-4cd4-8fc4-5d63c2f8a4a8'
+                        },
+                        title: {
+                            type: 'string',
+                            example: 'Homepage mobile - July snapshot'
+                        },
+                        pageUrl: {
+                            type: 'string',
+                            format: 'uri',
+                            example: 'https://example.com/'
+                        },
+                        createdAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            example: '2026-07-08T09:30:00.000Z'
+                        },
+                        performanceScore: {
+                            type: 'integer',
+                            minimum: 0,
+                            maximum: 100,
+                            example: 75
+                        },
+                        accessibilityScore: {
+                            type: 'integer',
+                            minimum: 0,
+                            maximum: 100,
+                            example: 97
+                        },
+                        seoScore: {
+                            type: 'integer',
+                            minimum: 0,
+                            maximum: 100,
+                            example: 98
+                        },
+                        bestPracticesScore: {
+                            type: 'integer',
+                            minimum: 0,
+                            maximum: 100,
+                            example: 90
+                        },
+                        agenticBrowsingScore: {
+                            type: 'integer',
+                            minimum: 0,
+                            maximum: 100,
+                            example: 79
+                        }
+                    },
+                    required: [
+                        'id',
+                        'title',
+                        'pageUrl',
+                        'createdAt',
+                        'performanceScore',
+                        'accessibilityScore',
+                        'seoScore',
+                        'bestPracticesScore',
+                        'agenticBrowsingScore'
+                    ]
+                },
+                ReportGroupTrend: {
+                    type: 'object',
+                    properties: {
+                        groupId: {
+                            type: 'string',
+                            example: 'e6bc5c14-e05e-4f18-8b27-d9f6da78124f'
+                        },
+                        groupName: {
+                            type: 'string',
+                            example: 'Homepage mobile'
+                        },
+                        pageUrl: {
+                            type: 'string',
+                            format: 'uri',
+                            example: 'https://example.com/'
+                        },
+                        strategy: {
+                            type: 'string',
+                            enum: ['mobile', 'desktop'],
+                            example: 'mobile'
+                        },
+                        points: {
+                            type: 'array',
+                            items: {
+                                $ref: '#/components/schemas/ReportTrendPoint'
+                            }
+                        }
+                    },
+                    required: ['groupId', 'groupName', 'pageUrl', 'strategy', 'points']
+                },
+                ReportGroup: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            example: 'e6bc5c14-e05e-4f18-8b27-d9f6da78124f'
+                        },
+                        projectId: {
+                            type: 'string',
+                            example: '0fd1f6d1-5a7b-4a8a-a7f8-75d1c59c3e1d'
+                        },
+                        name: {
+                            type: 'string',
+                            maxLength: 120,
+                            example: 'Homepage mobile'
+                        },
+                        pageUrl: {
+                            type: 'string',
+                            format: 'uri',
+                            maxLength: 2048,
+                            example: 'https://example.com/'
+                        },
+                        strategy: {
+                            type: 'string',
+                            enum: ['mobile', 'desktop'],
+                            example: 'mobile'
+                        },
+                        createdAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            example: '2026-07-08T08:00:00.000Z'
+                        }
+                    },
+                    required: ['id', 'projectId', 'name', 'pageUrl', 'strategy', 'createdAt']
+                },
+                ReportGroupSummary: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            example: 'e6bc5c14-e05e-4f18-8b27-d9f6da78124f'
+                        },
+                        name: {
+                            type: 'string',
+                            example: 'Homepage mobile'
+                        },
+                        pageUrl: {
+                            type: 'string',
+                            format: 'uri',
+                            example: 'https://example.com/'
+                        },
+                        strategy: {
+                            type: 'string',
+                            enum: ['mobile', 'desktop'],
+                            example: 'mobile'
+                        }
+                    },
+                    required: ['id', 'name', 'pageUrl', 'strategy']
                 },
                 ReportInsightMetric: {
                     type: 'object',
@@ -169,7 +559,7 @@ const openApiSpec = swaggerJSDoc({
                         },
                         unit: {
                             type: 'string',
-                            enum: ['ms', 'score', 'unitless'],
+                            enum: ['ms', 'score', 'unitless', 'bytes'],
                             example: 'ms'
                         },
                         displayValue: {
@@ -188,6 +578,9 @@ const openApiSpec = swaggerJSDoc({
                 ReportInsightMetrics: {
                     type: 'object',
                     properties: {
+                        pageWeight: {
+                            $ref: '#/components/schemas/ReportInsightMetric'
+                        },
                         firstContentfulPaint: {
                             $ref: '#/components/schemas/ReportInsightMetric'
                         },
@@ -239,6 +632,69 @@ const openApiSpec = swaggerJSDoc({
                         }
                     },
                     required: ['id', 'title', 'displayValue', 'score', 'overallSavingsMs']
+                },
+                ReportInsightAuditRef: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            example: 'tap-targets'
+                        },
+                        title: {
+                            type: 'string',
+                            example: 'Tap targets are not sized appropriately'
+                        },
+                        category: {
+                            type: 'string',
+                            example: 'seo'
+                        },
+                        severity: {
+                            type: 'string',
+                            enum: ['fail', 'warning'],
+                            example: 'fail'
+                        },
+                        displayValue: {
+                            type: 'string',
+                            nullable: true,
+                            example: null
+                        },
+                        score: {
+                            type: 'number',
+                            nullable: true,
+                            example: 0
+                        }
+                    },
+                    required: ['id', 'title', 'category', 'severity', 'displayValue', 'score']
+                },
+                ReportInsightUserTiming: {
+                    type: 'object',
+                    properties: {
+                        name: {
+                            type: 'string',
+                            example: 'app:hydrate'
+                        },
+                        entryType: {
+                            type: 'string',
+                            enum: ['mark', 'measure'],
+                            example: 'measure'
+                        },
+                        startTime: {
+                            type: 'number',
+                            nullable: true,
+                            example: 690
+                        },
+                        duration: {
+                            type: 'number',
+                            nullable: true,
+                            example: 850
+                        },
+                        displayValue: {
+                            type: 'string',
+                            nullable: true,
+                            example: '850 ms'
+                        }
+                    },
+                    required: ['name', 'entryType', 'startTime', 'duration', 'displayValue']
                 },
                 ReportInsights: {
                     type: 'object',
@@ -304,9 +760,22 @@ const openApiSpec = swaggerJSDoc({
                                     minimum: 0,
                                     maximum: 100,
                                     example: 100
+                                },
+                                agenticBrowsing: {
+                                    type: 'integer',
+                                    nullable: true,
+                                    minimum: 0,
+                                    maximum: 100,
+                                    example: null
                                 }
                             },
-                            required: ['performance', 'accessibility', 'bestPractices', 'seo']
+                            required: [
+                                'performance',
+                                'accessibility',
+                                'bestPractices',
+                                'seo',
+                                'agenticBrowsing'
+                            ]
                         },
                         metrics: {
                             $ref: '#/components/schemas/ReportInsightMetrics'
@@ -333,6 +802,20 @@ const openApiSpec = swaggerJSDoc({
                             maxItems: 5,
                             items: {
                                 $ref: '#/components/schemas/ReportInsightOpportunity'
+                            }
+                        },
+                        auditRefs: {
+                            type: 'array',
+                            maxItems: 20,
+                            items: {
+                                $ref: '#/components/schemas/ReportInsightAuditRef'
+                            }
+                        },
+                        userTimings: {
+                            type: 'array',
+                            maxItems: 50,
+                            items: {
+                                $ref: '#/components/schemas/ReportInsightUserTiming'
                             }
                         }
                     },
@@ -443,16 +926,50 @@ const openApiSpec = swaggerJSDoc({
                         }
                     }
                 },
+                CreateReportGroupRequest: {
+                    type: 'object',
+                    properties: {
+                        name: {
+                            type: 'string',
+                            maxLength: 120,
+                            example: 'Homepage mobile'
+                        },
+                        pageUrl: {
+                            type: 'string',
+                            format: 'uri',
+                            maxLength: 2048,
+                            example: 'https://example.com/'
+                        },
+                        strategy: {
+                            type: 'string',
+                            enum: ['mobile', 'desktop'],
+                            example: 'mobile'
+                        }
+                    },
+                    required: ['name', 'pageUrl', 'strategy']
+                },
                 CreateReportRequest: {
                     type: 'object',
                     properties: {
+                        groupId: {
+                            type: 'string',
+                            example: 'e6bc5c14-e05e-4f18-8b27-d9f6da78124f'
+                        },
                         title: {
                             type: 'string',
+                            maxLength: 160,
                             example: 'Homepage audit'
                         },
                         summary: {
                             type: 'string',
+                            maxLength: 500,
                             example: 'Initial report for homepage checks'
+                        },
+                        pageUrl: {
+                            type: 'string',
+                            format: 'uri',
+                            maxLength: 2048,
+                            example: 'https://example.com/'
                         },
                         accessibilityScore: {
                             type: 'integer',
@@ -472,11 +989,17 @@ const openApiSpec = swaggerJSDoc({
                             maximum: 100,
                             example: 78
                         },
-                        uxScore: {
+                        bestPracticesScore: {
                             type: 'integer',
                             minimum: 0,
                             maximum: 100,
-                            example: 82
+                            example: 92
+                        },
+                        agenticBrowsingScore: {
+                            type: 'integer',
+                            minimum: 0,
+                            maximum: 100,
+                            example: 80
                         },
                         insights: {
                             nullable: true,
@@ -488,24 +1011,39 @@ const openApiSpec = swaggerJSDoc({
                         }
                     },
                     required: [
+                        'groupId',
                         'title',
                         'summary',
+                        'pageUrl',
                         'accessibilityScore',
                         'performanceScore',
                         'seoScore',
-                        'uxScore'
+                        'bestPracticesScore',
+                        'agenticBrowsingScore'
                     ]
                 },
                 UpdateReportRequest: {
                     type: 'object',
                     properties: {
+                        groupId: {
+                            type: 'string',
+                            example: 'e6bc5c14-e05e-4f18-8b27-d9f6da78124f'
+                        },
                         title: {
                             type: 'string',
+                            maxLength: 160,
                             example: 'Updated homepage audit'
                         },
                         summary: {
                             type: 'string',
+                            maxLength: 500,
                             example: 'Updated report summary'
+                        },
+                        pageUrl: {
+                            type: 'string',
+                            format: 'uri',
+                            maxLength: 2048,
+                            example: 'https://example.com/'
                         },
                         accessibilityScore: {
                             type: 'integer',
@@ -525,21 +1063,30 @@ const openApiSpec = swaggerJSDoc({
                             maximum: 100,
                             example: 80
                         },
-                        uxScore: {
+                        bestPracticesScore: {
                             type: 'integer',
                             minimum: 0,
                             maximum: 100,
-                            example: 84
+                            example: 88
                         },
-                        insights: {
-                            nullable: true,
-                            allOf: [
-                                {
-                                    $ref: '#/components/schemas/ReportInsights'
-                                }
-                            ]
+                        agenticBrowsingScore: {
+                            type: 'integer',
+                            minimum: 0,
+                            maximum: 100,
+                            example: 82
                         }
-                    }
+                    },
+                    required: [
+                        'groupId',
+                        'title',
+                        'summary',
+                        'pageUrl',
+                        'accessibilityScore',
+                        'performanceScore',
+                        'seoScore',
+                        'bestPracticesScore',
+                        'agenticBrowsingScore'
+                    ]
                 }
             }
         }

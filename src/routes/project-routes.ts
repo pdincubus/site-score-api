@@ -68,7 +68,7 @@ const projectRoutes = Router();
  *                 data:
  *                   type: array
  *                   items:
- *                     $ref: '#/components/schemas/Project'
+ *                     $ref: '#/components/schemas/ProjectListItem'
  *                 pagination:
  *                   type: object
  *                   properties:

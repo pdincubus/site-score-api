@@ -12,6 +12,7 @@ type ProjectListQuery = PaginationQuery & {
 
 type ReportListQuery = PaginationQuery & {
     search: string;
+    groupId: string;
     sort: 'createdAt' | 'title';
     order: 'asc' | 'desc';
 };
@@ -91,9 +92,15 @@ function getReportListQuery(query: Record<string, unknown>): ReportListQuery {
             ? query.order
             : 'desc';
 
+    const groupId =
+        typeof query.groupId === 'string'
+            ? query.groupId.trim()
+            : '';
+
     return {
         ...pagination,
         search,
+        groupId,
         sort,
         order
     };

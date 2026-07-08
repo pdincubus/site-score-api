@@ -57,27 +57,24 @@ async function runSeed(pool: Pool, label: string) {
     try {
         await pool.query('DELETE FROM sessions');
         await pool.query('DELETE FROM reports');
+        await pool.query('DELETE FROM report_groups');
         await pool.query('DELETE FROM projects');
         await pool.query('DELETE FROM users');
 
-        const [firstUser, secondUser] = seedData.users;
-
-        await pool.query(
-            `
-                INSERT INTO users (id, name, email, password_hash)
-                VALUES ($1, $2, $3, $4), ($5, $6, $7, $8)
-            `,
-            [
-                firstUser.id,
-                firstUser.name,
-                firstUser.email,
-                firstUser.passwordHash,
-                secondUser.id,
-                secondUser.name,
-                secondUser.email,
-                secondUser.passwordHash
-            ]
-        );
+        for (const user of seedData.users) {
+            await pool.query(
+                `
+                    INSERT INTO users (id, name, email, password_hash)
+                    VALUES ($1, $2, $3, $4)
+                `,
+                [
+                    user.id,
+                    user.name,
+                    user.email,
+                    user.passwordHash
+                ]
+            );
+        }
 
         for (const project of seedData.projects) {
             await pool.query(
@@ -89,30 +86,56 @@ async function runSeed(pool: Pool, label: string) {
             );
         }
 
+        for (const group of seedData.reportGroups) {
+            await pool.query(
+                `
+                    INSERT INTO report_groups (id, project_id, name, page_url, strategy)
+                    VALUES ($1, $2, $3, $4, $5)
+                `,
+                [
+                    group.id,
+                    group.projectId,
+                    group.name,
+                    group.pageUrl,
+                    group.strategy
+                ]
+            );
+        }
+
         for (const report of seedData.reports) {
             await pool.query(
                 `
                     INSERT INTO reports (
                         id,
                         project_id,
+                        group_id,
                         title,
                         summary,
+                        page_url,
                         accessibility_score,
                         performance_score,
                         seo_score,
-                        ux_score
+                        best_practices_score,
+                        agentic_browsing_score,
+                        insights,
+                        created_at
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                 `,
                 [
                     report.id,
                     report.projectId,
+                    report.groupId,
                     report.title,
                     report.summary,
+                    report.pageUrl,
                     report.accessibilityScore,
                     report.performanceScore,
                     report.seoScore,
-                    report.uxScore
+                    report.bestPracticesScore,
+                    report.agenticBrowsingScore,
+                    report.insights ? JSON.stringify(report.insights) : null,
+                    report.createdAt
                 ]
             );
         }
@@ -133,6 +156,14 @@ async function runSeed(pool: Pool, label: string) {
 
         for (const project of seedData.projects.slice(0, 10)) {
             console.log(`- ${project.name} (${project.id})`);
+        }
+
+        console.log('');
+        console.log(`Report groups: ${seedData.reportGroups.length}`);
+        console.log('Sample report groups:');
+
+        for (const group of seedData.reportGroups.slice(0, 10)) {
+            console.log(`- ${group.name} (${group.id})`);
         }
 
         console.log('');

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const reportInsightMetricNameSchema = z.enum([
+    'pageWeight',
     'firstContentfulPaint',
     'largestContentfulPaint',
     'cumulativeLayoutShift',
@@ -33,12 +34,13 @@ const reportInsightUrlSchema = z.string()
 
 const reportInsightMetricSchema = z.object({
     value: finiteNumberSchema.nullable(),
-    unit: z.enum(['ms', 'score', 'unitless']),
+    unit: z.enum(['ms', 'score', 'unitless', 'bytes']),
     displayValue: z.string().max(500).nullable(),
     category: z.string().max(100).nullable().optional()
 }).strict();
 
 const reportInsightMetricsSchema = z.object({
+    pageWeight: reportInsightMetricSchema.optional(),
     firstContentfulPaint: reportInsightMetricSchema.optional(),
     largestContentfulPaint: reportInsightMetricSchema.optional(),
     cumulativeLayoutShift: reportInsightMetricSchema.optional(),
@@ -54,6 +56,23 @@ const reportInsightOpportunitySchema = z.object({
     displayValue: z.string().max(300).nullable(),
     score: finiteNumberSchema.min(0).max(1).nullable(),
     overallSavingsMs: finiteNumberSchema.nonnegative().nullable()
+}).strict();
+
+const reportInsightAuditRefSchema = z.object({
+    id: z.string().trim().min(1).max(120),
+    title: z.string().trim().min(1).max(300),
+    category: z.string().trim().min(1).max(120),
+    severity: z.enum(['fail', 'warning']),
+    displayValue: z.string().max(300).nullable(),
+    score: finiteNumberSchema.min(0).max(1).nullable()
+}).strict();
+
+const reportInsightUserTimingSchema = z.object({
+    name: z.string().trim().min(1).max(200),
+    entryType: z.enum(['mark', 'measure']),
+    startTime: finiteNumberSchema.nonnegative().nullable(),
+    duration: finiteNumberSchema.nonnegative().nullable(),
+    displayValue: z.string().max(120).nullable()
 }).strict();
 
 const isoDateTimeSchema = z.string().refine((value) => {
@@ -73,7 +92,8 @@ const reportInsightsSchema = z.object({
         performance: scoreSchema,
         accessibility: scoreSchema,
         bestPractices: scoreSchema,
-        seo: scoreSchema
+        seo: scoreSchema,
+        agenticBrowsing: scoreSchema
     }).strict(),
     metrics: reportInsightMetricsSchema,
     fieldData: z.object({
@@ -81,14 +101,18 @@ const reportInsightsSchema = z.object({
         overallCategory: z.string().max(100).nullable(),
         metrics: reportInsightMetricsSchema
     }).strict().nullable().optional(),
-    opportunities: z.array(reportInsightOpportunitySchema).max(5)
+    opportunities: z.array(reportInsightOpportunitySchema).max(5),
+    auditRefs: z.array(reportInsightAuditRefSchema).max(20).optional(),
+    userTimings: z.array(reportInsightUserTimingSchema).max(50).optional()
 }).strict();
 
 export {
+    reportInsightAuditRefSchema,
     pageSpeedStrategySchema,
     reportInsightMetricSchema,
     reportInsightMetricsSchema,
     reportInsightOpportunitySchema,
+    reportInsightUserTimingSchema,
     reportInsightsSchema,
     reportInsightsSourceSchema
 };

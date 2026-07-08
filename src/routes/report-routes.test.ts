@@ -1,10 +1,12 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../app.js';
+import { pool } from '../db/database.js';
 import { clearTables } from '../test/test-db.js';
 import {
     createProject,
     createReport,
+    createReportGroup,
     registerAndLoginAs
 } from '../test/test-helpers.js';
 
@@ -19,20 +21,27 @@ const validInsights = {
         performance: 94,
         accessibility: 98,
         bestPractices: 92,
-        seo: 100
+        seo: 100,
+        agenticBrowsing: null
     },
     metrics: {
+        pageWeight: {
+            value: 1837056,
+            unit: 'bytes',
+            displayValue: null,
+            category: 'performance'
+        },
         largestContentfulPaint: {
             value: 1800,
             unit: 'ms',
             displayValue: '1.8 s',
-            category: null
+            category: 'performance'
         },
         cumulativeLayoutShift: {
             value: 0.02,
             unit: 'unitless',
             displayValue: '0.02',
-            category: null
+            category: 'performance'
         }
     },
     fieldData: null,
@@ -44,27 +53,191 @@ const validInsights = {
             score: 0.71,
             overallSavingsMs: 520
         }
+    ],
+    auditRefs: [
+        {
+            id: 'tap-targets',
+            title: 'Tap targets are not sized appropriately',
+            category: 'seo',
+            severity: 'fail',
+            displayValue: null,
+            score: 0
+        }
+    ],
+    userTimings: [
+        {
+            name: 'app:hydrate',
+            entryType: 'measure',
+            startTime: 690,
+            duration: 850,
+            displayValue: '850 ms'
+        },
+        {
+            name: 'app:ready',
+            entryType: 'mark',
+            startTime: 3200,
+            duration: null,
+            displayValue: '3.2 s'
+        }
     ]
 };
+
+async function createOwnedProjectWithGroup(email = 'phil@example.com') {
+    const cookie = await registerAndLoginAs({
+        name: 'Phil',
+        email
+    });
+
+    const createProjectResponse = await createProject({
+        cookie,
+        name: 'Report project',
+        url: 'https://report-project.com'
+    });
+
+    const projectId = createProjectResponse.body.id;
+    const createGroupResponse = await createReportGroup({
+        cookie,
+        projectId,
+        name: 'Homepage mobile',
+        pageUrl: 'https://report-project.com/',
+        strategy: 'mobile'
+    });
+
+    return {
+        cookie,
+        projectId,
+        group: createGroupResponse.body
+    };
+}
+
+function buildReportBody(groupId: string, overrides: Record<string, unknown> = {}) {
+    return {
+        groupId,
+        title: 'Homepage audit',
+        summary: 'Initial report',
+        pageUrl: 'https://report-project.com/',
+        accessibilityScore: 85,
+        performanceScore: 90,
+        seoScore: 78,
+        bestPracticesScore: 92,
+        agenticBrowsingScore: 80,
+        ...overrides
+    };
+}
+
+function buildInsightsWithUserTimings(hydrateDuration: number, readyStartTime: number) {
+    return {
+        ...validInsights,
+        userTimings: [
+            {
+                name: 'app:hydrate',
+                entryType: 'measure',
+                startTime: 690,
+                duration: hydrateDuration,
+                displayValue: `${hydrateDuration} ms`
+            },
+            {
+                name: 'app:ready',
+                entryType: 'mark',
+                startTime: readyStartTime,
+                duration: null,
+                displayValue: `${(readyStartTime / 1000).toFixed(1)} s`
+            }
+        ]
+    };
+}
+
+async function setReportCreatedAt(reportId: string, createdAt: string) {
+    await pool.query(
+        `
+            UPDATE reports
+            SET created_at = $1
+            WHERE id = $2
+        `,
+        [createdAt, reportId]
+    );
+}
 
 describe('Report routes', () => {
     beforeEach(async () => {
         await clearTables();
     });
 
-    it('returns an empty array when a project has no reports', async () => {
-        const cookie = await registerAndLoginAs({
-            name: 'Phil',
-            email: 'phil@example.com'
+    it('creates and lists report groups for an owned project', async () => {
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
+
+        expect(group.projectId).toBe(projectId);
+        expect(group.name).toBe('Homepage mobile');
+        expect(group.pageUrl).toBe('https://report-project.com/');
+        expect(group.strategy).toBe('mobile');
+        expect(group.createdAt).toEqual(expect.any(String));
+
+        const response = await request(app)
+            .get(`/projects/${projectId}/report-groups`)
+            .set('Cookie', cookie);
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual([group]);
+    });
+
+    it('validates report group create requests', async () => {
+        const { cookie, projectId } = await createOwnedProjectWithGroup();
+
+        const testCases = [
+            {
+                name: '',
+                pageUrl: 'https://example.com/',
+                strategy: 'mobile'
+            },
+            {
+                name: 'Homepage mobile',
+                pageUrl: 'http://localhost:3000/',
+                strategy: 'mobile'
+            },
+            {
+                name: 'Homepage mobile',
+                pageUrl: 'https://example.com/',
+                strategy: 'tablet'
+            }
+        ];
+
+        for (const body of testCases) {
+            const response = await request(app)
+                .post(`/projects/${projectId}/report-groups`)
+                .set('Cookie', cookie)
+                .send(body);
+
+            expect(response.status).toBe(400);
+        }
+    });
+
+    it('rejects report group access for unauthenticated or different users', async () => {
+        const { projectId } = await createOwnedProjectWithGroup();
+
+        const unauthenticatedResponse = await request(app)
+            .get(`/projects/${projectId}/report-groups`);
+
+        expect(unauthenticatedResponse.status).toBe(401);
+
+        const otherUserCookie = await registerAndLoginAs({
+            name: 'Other user',
+            email: 'other@example.com'
         });
 
-        const createProjectResponse = await createProject({
-            cookie,
-            name: 'Project with no reports',
-            url: 'https://no-reports.com'
-        });
+        const forbiddenResponse = await request(app)
+            .post(`/projects/${projectId}/report-groups`)
+            .set('Cookie', otherUserCookie)
+            .send({
+                name: 'Pricing mobile',
+                pageUrl: 'https://report-project.com/pricing',
+                strategy: 'mobile'
+            });
 
-        const projectId = createProjectResponse.body.id;
+        expect(forbiddenResponse.status).toBe(403);
+    });
+
+    it('returns an empty paginated list when a project has no reports', async () => {
+        const { cookie, projectId } = await createOwnedProjectWithGroup();
 
         const response = await request(app)
             .get(`/projects/${projectId}/reports`)
@@ -82,81 +255,110 @@ describe('Report routes', () => {
         });
     });
 
-    it('rejects report listing when not authenticated', async () => {
-        const cookie = await registerAndLoginAs({
-            name: 'Phil',
-            email: 'phil@example.com'
-        });
-
-        const createProjectResponse = await createProject({
-            cookie,
-            name: 'Protected report list project',
-            url: 'https://protected-report-list.com'
-        });
-
-        const response = await request(app)
-            .get(`/projects/${createProjectResponse.body.id}/reports`);
-
-        expect(response.status).toBe(401);
-        expect(response.body).toEqual({
-            error: 'Not authenticated'
-        });
-    });
-
-    it('creates a report for an owned project', async () => {
-        const cookie = await registerAndLoginAs({
-            name: 'Phil',
-            email: 'phil@example.com'
-        });
-
-        const createProjectResponse = await createProject({
-            cookie,
-            name: 'Project with reports',
-            url: 'https://with-reports.com'
-        });
-
-        const projectId = createProjectResponse.body.id;
+    it('creates a report with group details, page URL, five scores, and no uxScore', async () => {
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
 
         const response = await createReport({
             cookie,
             projectId,
+            groupId: group.id,
             title: 'Homepage audit',
             summary: 'Initial report',
+            pageUrl: 'https://report-project.com/',
             accessibilityScore: 85,
             performanceScore: 90,
             seoScore: 78,
-            uxScore: 82
+            bestPracticesScore: 92,
+            agenticBrowsingScore: 80
         });
 
         expect(response.status).toBe(201);
-        expect(response.body.projectId).toBe(projectId);
-        expect(response.body.title).toBe('Homepage audit');
-        expect(response.body.accessibilityScore).toBe(85);
+        expect(response.body).toMatchObject({
+            projectId,
+            groupId: group.id,
+            group: {
+                id: group.id,
+                name: 'Homepage mobile',
+                pageUrl: 'https://report-project.com/',
+                strategy: 'mobile'
+            },
+            title: 'Homepage audit',
+            pageUrl: 'https://report-project.com/',
+            accessibilityScore: 85,
+            performanceScore: 90,
+            seoScore: 78,
+            bestPracticesScore: 92,
+            agenticBrowsingScore: 80,
+            insights: null
+        });
+        expect(response.body.createdAt).toEqual(expect.any(String));
+        expect(response.body).not.toHaveProperty('uxScore');
+    });
+
+    it('requires groupId, pageUrl, and all five scores when creating reports', async () => {
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
+        const requiredFields = [
+            'groupId',
+            'pageUrl',
+            'accessibilityScore',
+            'performanceScore',
+            'seoScore',
+            'bestPracticesScore',
+            'agenticBrowsingScore'
+        ];
+
+        for (const field of requiredFields) {
+            const body: Record<string, unknown> = buildReportBody(group.id);
+            delete body[field];
+
+            const response = await request(app)
+                .post(`/projects/${projectId}/reports`)
+                .set('Cookie', cookie)
+                .send(body);
+
+            expect(response.status).toBe(400);
+        }
+    });
+
+    it('rejects invalid scores and removed uxScore on create', async () => {
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
+        const testCases = [
+            buildReportBody(group.id, {
+                performanceScore: 90.5
+            }),
+            buildReportBody(group.id, {
+                seoScore: 101
+            }),
+            buildReportBody(group.id, {
+                uxScore: 82
+            })
+        ];
+
+        for (const body of testCases) {
+            const response = await request(app)
+                .post(`/projects/${projectId}/reports`)
+                .set('Cookie', cookie)
+                .send(body);
+
+            expect(response.status).toBe(400);
+        }
     });
 
     it('creates a report with optional PageSpeed insights', async () => {
-        const cookie = await registerAndLoginAs({
-            name: 'Phil',
-            email: 'phil-insights-create@example.com'
-        });
-
-        const createProjectResponse = await createProject({
-            cookie,
-            name: 'Project with imported insights',
-            url: 'https://with-imported-insights.com'
-        });
-
-        const projectId = createProjectResponse.body.id;
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
 
         const response = await createReport({
             cookie,
             projectId,
+            groupId: group.id,
             title: 'Homepage audit',
             summary: 'Initial report',
+            pageUrl: 'https://report-project.com/',
             accessibilityScore: 98,
             performanceScore: 94,
             seoScore: 100,
-            uxScore: 82,
+            bestPracticesScore: 92,
+            agenticBrowsingScore: 80,
             insights: validInsights
         });
 
@@ -172,26 +374,20 @@ describe('Report routes', () => {
     });
 
     it('rejects malformed report insights on create', async () => {
-        const cookie = await registerAndLoginAs({
-            name: 'Phil',
-            email: 'phil-bad-insights-create@example.com'
-        });
-
-        const createProjectResponse = await createProject({
-            cookie,
-            name: 'Bad insights project',
-            url: 'https://bad-insights-create.com'
-        });
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
 
         const response = await createReport({
             cookie,
-            projectId: createProjectResponse.body.id,
+            projectId,
+            groupId: group.id,
             title: 'Homepage audit',
             summary: 'Initial report',
+            pageUrl: 'https://report-project.com/',
             accessibilityScore: 98,
             performanceScore: 94,
             seoScore: 100,
-            uxScore: 82,
+            bestPracticesScore: 92,
+            agenticBrowsingScore: 80,
             insights: {
                 source: 'PAGESPEED'
             }
@@ -200,616 +396,690 @@ describe('Report routes', () => {
         expect(response.status).toBe(400);
     });
 
-    it('rejects report creation when not authenticated', async () => {
-        const ownerCookie = await registerAndLoginAs({
-            name: 'Phil',
-            email: 'phil@example.com'
+    it('rejects reports created with a group from another project', async () => {
+        const { cookie, projectId } = await createOwnedProjectWithGroup();
+        const otherProjectResponse = await createProject({
+            cookie,
+            name: 'Other project',
+            url: 'https://other-project.com'
         });
-
-        const createProjectResponse = await createProject({
-            cookie: ownerCookie,
-            name: 'Protected project',
-            url: 'https://protected-reports.com'
+        const otherGroupResponse = await createReportGroup({
+            cookie,
+            projectId: otherProjectResponse.body.id,
+            name: 'Other homepage mobile',
+            pageUrl: 'https://other-project.com/',
+            strategy: 'mobile'
         });
-
-        const projectId = createProjectResponse.body.id;
 
         const response = await request(app)
             .post(`/projects/${projectId}/reports`)
-            .send({
-                title: 'Blocked report',
-                summary: 'Should fail',
-                accessibilityScore: 85,
-                performanceScore: 90,
-                seoScore: 78,
-                uxScore: 82
-            });
+            .set('Cookie', cookie)
+            .send(buildReportBody(otherGroupResponse.body.id));
 
-        expect(response.status).toBe(401);
+        expect(response.status).toBe(404);
         expect(response.body).toEqual({
-            error: 'Not authenticated'
+            error: 'Report group not found'
         });
     });
 
-    it('rejects report creation by a different authenticated user', async () => {
-        const ownerCookie = await registerAndLoginAs({
-            name: 'Owner',
-            email: 'owner@example.com'
-        });
-
-        const createProjectResponse = await createProject({
-            cookie: ownerCookie,
-            name: 'Owner project',
-            url: 'https://owner-report-project.com'
-        });
-
-        const projectId = createProjectResponse.body.id;
-
-        const otherUserCookie = await registerAndLoginAs({
-            name: 'Other user',
-            email: 'other@example.com'
-        });
-
-        const response = await createReport({
-            cookie: otherUserCookie,
-            projectId,
-            title: 'Blocked report',
-            summary: 'Should fail',
-            accessibilityScore: 85,
-            performanceScore: 90,
-            seoScore: 78,
-            uxScore: 82
-        });
-
-        expect(response.status).toBe(403);
-        expect(response.body).toEqual({
-            error: 'Forbidden'
-        });
-    });
-
-    it('returns reports for an owned project', async () => {
-        const cookie = await registerAndLoginAs({
-            name: 'Phil',
-            email: 'phil@example.com'
-        });
-
-        const createProjectResponse = await createProject({
+    it('filters project reports by groupId', async () => {
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
+        const secondGroupResponse = await createReportGroup({
             cookie,
-            name: 'Project with reports',
-            url: 'https://project-reports.com'
+            projectId,
+            name: 'Pricing mobile',
+            pageUrl: 'https://report-project.com/pricing',
+            strategy: 'mobile'
         });
-
-        const projectId = createProjectResponse.body.id;
 
         await createReport({
             cookie,
             projectId,
+            groupId: group.id,
             title: 'Homepage audit',
-            summary: 'Initial report',
+            summary: 'Homepage report',
+            pageUrl: 'https://report-project.com/',
             accessibilityScore: 85,
             performanceScore: 90,
             seoScore: 78,
-            uxScore: 82
+            bestPracticesScore: 92,
+            agenticBrowsingScore: 80
+        });
+        await createReport({
+            cookie,
+            projectId,
+            groupId: secondGroupResponse.body.id,
+            title: 'Pricing audit',
+            summary: 'Pricing report',
+            pageUrl: 'https://report-project.com/pricing',
+            accessibilityScore: 86,
+            performanceScore: 91,
+            seoScore: 79,
+            bestPracticesScore: 93,
+            agenticBrowsingScore: 81
         });
 
         const response = await request(app)
-            .get(`/projects/${projectId}/reports`)
+            .get(`/projects/${projectId}/reports?groupId=${secondGroupResponse.body.id}`)
             .set('Cookie', cookie);
 
         expect(response.status).toBe(200);
         expect(response.body.data).toHaveLength(1);
-        expect(response.body.data[0].projectId).toBe(projectId);
-        expect(response.body.data[0].title).toBe('Homepage audit');
+        expect(response.body.data[0].title).toBe('Pricing audit');
+        expect(response.body.data[0].groupId).toBe(secondGroupResponse.body.id);
+        expect(response.body.pagination.total).toBe(1);
+    });
+
+    it('validates report list groupId filters', async () => {
+        const { cookie, projectId } = await createOwnedProjectWithGroup();
+
+        const invalidResponse = await request(app)
+            .get(`/projects/${projectId}/reports?groupId=not-a-uuid`)
+            .set('Cookie', cookie);
+
+        expect(invalidResponse.status).toBe(400);
+
+        const otherProjectResponse = await createProject({
+            cookie,
+            name: 'Filter other project',
+            url: 'https://filter-other-project.com'
+        });
+        const otherGroupResponse = await createReportGroup({
+            cookie,
+            projectId: otherProjectResponse.body.id,
+            name: 'Other group',
+            pageUrl: 'https://filter-other-project.com/',
+            strategy: 'desktop'
+        });
+
+        const inaccessibleResponse = await request(app)
+            .get(`/projects/${projectId}/reports?groupId=${otherGroupResponse.body.id}`)
+            .set('Cookie', cookie);
+
+        expect(inaccessibleResponse.status).toBe(404);
+        expect(inaccessibleResponse.body).toEqual({
+            error: 'Report group not found'
+        });
+    });
+
+    it('returns report group trends with full history ordered oldest to newest', async () => {
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
+        const emptyGroupResponse = await createReportGroup({
+            cookie,
+            projectId,
+            name: 'Homepage desktop',
+            pageUrl: 'https://report-project.com/',
+            strategy: 'desktop'
+        });
+        const olderReportResponse = await createReport({
+            cookie,
+            projectId,
+            groupId: group.id,
+            title: 'June baseline',
+            summary: 'June baseline',
+            pageUrl: 'https://report-project.com/',
+            accessibilityScore: 97,
+            performanceScore: 68,
+            seoScore: 100,
+            bestPracticesScore: 86,
+            agenticBrowsingScore: 82
+        });
+        const newerReportResponse = await createReport({
+            cookie,
+            projectId,
+            groupId: group.id,
+            title: 'July snapshot',
+            summary: 'July snapshot',
+            pageUrl: 'https://report-project.com/',
+            accessibilityScore: 97,
+            performanceScore: 75,
+            seoScore: 98,
+            bestPracticesScore: 90,
+            agenticBrowsingScore: 79
+        });
+
+        await setReportCreatedAt(newerReportResponse.body.id, '2026-07-08T09:30:00.000Z');
+        await setReportCreatedAt(olderReportResponse.body.id, '2026-06-08T09:30:00.000Z');
+
+        const response = await request(app)
+            .get(`/projects/${projectId}/report-group-trends`)
+            .set('Cookie', cookie);
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual([
+            {
+                groupId: emptyGroupResponse.body.id,
+                groupName: 'Homepage desktop',
+                pageUrl: 'https://report-project.com/',
+                strategy: 'desktop',
+                points: []
+            },
+            {
+                groupId: group.id,
+                groupName: 'Homepage mobile',
+                pageUrl: 'https://report-project.com/',
+                strategy: 'mobile',
+                points: [
+                    {
+                        id: olderReportResponse.body.id,
+                        title: 'June baseline',
+                        pageUrl: 'https://report-project.com/',
+                        createdAt: '2026-06-08T09:30:00.000Z',
+                        performanceScore: 68,
+                        accessibilityScore: 97,
+                        seoScore: 100,
+                        bestPracticesScore: 86,
+                        agenticBrowsingScore: 82
+                    },
+                    {
+                        id: newerReportResponse.body.id,
+                        title: 'July snapshot',
+                        pageUrl: 'https://report-project.com/',
+                        createdAt: '2026-07-08T09:30:00.000Z',
+                        performanceScore: 75,
+                        accessibilityScore: 97,
+                        seoScore: 98,
+                        bestPracticesScore: 90,
+                        agenticBrowsingScore: 79
+                    }
+                ]
+            }
+        ]);
+    });
+
+    it('filters report group trends by groupId', async () => {
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
+        const secondGroupResponse = await createReportGroup({
+            cookie,
+            projectId,
+            name: 'Pricing mobile',
+            pageUrl: 'https://report-project.com/pricing',
+            strategy: 'mobile'
+        });
+
+        await createReport({
+            cookie,
+            projectId,
+            groupId: group.id,
+            title: 'Homepage trend point',
+            summary: 'Homepage trend point',
+            pageUrl: 'https://report-project.com/',
+            accessibilityScore: 97,
+            performanceScore: 75,
+            seoScore: 98,
+            bestPracticesScore: 90,
+            agenticBrowsingScore: 79
+        });
+
+        const response = await request(app)
+            .get(`/projects/${projectId}/report-group-trends?groupId=${secondGroupResponse.body.id}`)
+            .set('Cookie', cookie);
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual([
+            {
+                groupId: secondGroupResponse.body.id,
+                groupName: 'Pricing mobile',
+                pageUrl: 'https://report-project.com/pricing',
+                strategy: 'mobile',
+                points: []
+            }
+        ]);
+    });
+
+    it('validates report group trend filters and ownership', async () => {
+        const { cookie, projectId } = await createOwnedProjectWithGroup();
+
+        const invalidResponse = await request(app)
+            .get(`/projects/${projectId}/report-group-trends?groupId=not-a-uuid`)
+            .set('Cookie', cookie);
+
+        expect(invalidResponse.status).toBe(400);
+
+        const otherProjectResponse = await createProject({
+            cookie,
+            name: 'Trend other project',
+            url: 'https://trend-other-project.com'
+        });
+        const otherGroupResponse = await createReportGroup({
+            cookie,
+            projectId: otherProjectResponse.body.id,
+            name: 'Other trend group',
+            pageUrl: 'https://trend-other-project.com/',
+            strategy: 'desktop'
+        });
+
+        const inaccessibleResponse = await request(app)
+            .get(`/projects/${projectId}/report-group-trends?groupId=${otherGroupResponse.body.id}`)
+            .set('Cookie', cookie);
+
+        expect(inaccessibleResponse.status).toBe(404);
+        expect(inaccessibleResponse.body).toEqual({
+            error: 'Report group not found'
+        });
+
+        const otherUserCookie = await registerAndLoginAs({
+            name: 'Other user',
+            email: 'trend-other@example.com'
+        });
+        const forbiddenResponse = await request(app)
+            .get(`/projects/${projectId}/report-group-trends`)
+            .set('Cookie', otherUserCookie);
+
+        expect(forbiddenResponse.status).toBe(403);
+    });
+
+    it('keeps existing search and title sorting behaviour', async () => {
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
+
+        await createReport({
+            cookie,
+            projectId,
+            groupId: group.id,
+            title: 'Zoo audit',
+            summary: 'Last alphabetically',
+            pageUrl: 'https://report-project.com/zoo',
+            accessibilityScore: 85,
+            performanceScore: 90,
+            seoScore: 78,
+            bestPracticesScore: 92,
+            agenticBrowsingScore: 80
+        });
+        await createReport({
+            cookie,
+            projectId,
+            groupId: group.id,
+            title: 'Alpha audit',
+            summary: 'First alphabetically checkout flow',
+            pageUrl: 'https://report-project.com/alpha',
+            accessibilityScore: 85,
+            performanceScore: 90,
+            seoScore: 78,
+            bestPracticesScore: 92,
+            agenticBrowsingScore: 80
+        });
+
+        const response = await request(app)
+            .get(`/projects/${projectId}/reports?search=checkout&sort=title&order=asc`)
+            .set('Cookie', cookie);
+
+        expect(response.status).toBe(200);
+        expect(response.body.data).toHaveLength(1);
+        expect(response.body.data[0].title).toBe('Alpha audit');
     });
 
     it('returns an owned report by id', async () => {
-        const cookie = await registerAndLoginAs({
-            name: 'Phil',
-            email: 'phil@example.com'
-        });
-
-        const createProjectResponse = await createProject({
-            cookie,
-            name: 'Single report project',
-            url: 'https://single-report.com'
-        });
-
-        const projectId = createProjectResponse.body.id;
-
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
         const createReportResponse = await createReport({
             cookie,
             projectId,
+            groupId: group.id,
             title: 'Single report',
             summary: 'Single report summary',
+            pageUrl: 'https://report-project.com/',
             accessibilityScore: 81,
             performanceScore: 82,
             seoScore: 83,
-            uxScore: 84
+            bestPracticesScore: 84,
+            agenticBrowsingScore: 85
         });
 
-        const reportId = createReportResponse.body.id;
-
         const response = await request(app)
-            .get(`/reports/${reportId}`)
+            .get(`/reports/${createReportResponse.body.id}`)
             .set('Cookie', cookie);
 
         expect(response.status).toBe(200);
-        expect(response.body.id).toBe(reportId);
-        expect(response.body.title).toBe('Single report');
+        expect(response.body.id).toBe(createReportResponse.body.id);
+        expect(response.body.group.id).toBe(group.id);
     });
 
-    it('rejects report lookup when not authenticated', async () => {
-        const response = await request(app)
-            .get('/reports/22222222-2222-2222-2222-222222222222');
-
-        expect(response.status).toBe(401);
-        expect(response.body).toEqual({
-            error: 'Not authenticated'
+    it('returns null comparison for the first report in a group', async () => {
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
+        const createReportResponse = await createReport({
+            cookie,
+            projectId,
+            groupId: group.id,
+            title: 'Baseline report',
+            summary: 'Baseline summary',
+            pageUrl: 'https://report-project.com/',
+            accessibilityScore: 90,
+            performanceScore: 70,
+            seoScore: 98,
+            bestPracticesScore: 88,
+            agenticBrowsingScore: 80
         });
-    });
-
-    it('returns 404 for a missing report while authenticated', async () => {
-        const cookie = await registerAndLoginAs({
-            name: 'Phil',
-            email: 'phil@example.com'
-        });
 
         const response = await request(app)
-            .get('/reports/22222222-2222-2222-2222-222222222222')
+            .get(`/reports/${createReportResponse.body.id}`)
             .set('Cookie', cookie);
 
-        expect(response.status).toBe(404);
-        expect(response.body).toEqual({
-            error: 'Report not found'
-        });
+        expect(response.status).toBe(200);
+        expect(response.body.comparison).toBeNull();
     });
 
-    it('updates a report when owned by the authenticated user', async () => {
-        const cookie = await registerAndLoginAs({
-            name: 'Phil',
-            email: 'phil@example.com'
-        });
-
-        const createProjectResponse = await createProject({
-            cookie,
-            name: 'Update report project',
-            url: 'https://update-report.com'
-        });
-
-        const projectId = createProjectResponse.body.id;
-
-        const createReportResponse = await createReport({
+    it('returns score and User Timing comparisons against the previous same-group report', async () => {
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
+        const baselineResponse = await createReport({
             cookie,
             projectId,
-            title: 'Old report title',
-            summary: 'Old summary',
-            accessibilityScore: 70,
-            performanceScore: 71,
-            seoScore: 72,
-            uxScore: 73
+            groupId: group.id,
+            title: 'Homepage mobile - June baseline',
+            summary: 'Baseline summary',
+            pageUrl: 'https://report-project.com/',
+            accessibilityScore: 97,
+            performanceScore: 68,
+            seoScore: 100,
+            bestPracticesScore: 86,
+            agenticBrowsingScore: 82,
+            insights: buildInsightsWithUserTimings(1270, 3000)
         });
-
-        const reportId = createReportResponse.body.id;
-
-        const response = await request(app)
-            .patch(`/reports/${reportId}`)
-            .set('Cookie', cookie)
-            .send({
-                title: 'New report title',
-                performanceScore: 95
-            });
-
-        expect(response.status).toBe(200);
-        expect(response.body.title).toBe('New report title');
-        expect(response.body.performanceScore).toBe(95);
-        expect(response.body.summary).toBe('Old summary');
-    });
-
-    it('updates report insights when owned by the authenticated user', async () => {
-        const cookie = await registerAndLoginAs({
-            name: 'Phil',
-            email: 'phil-insights-update@example.com'
-        });
-
-        const createProjectResponse = await createProject({
-            cookie,
-            name: 'Update report insights project',
-            url: 'https://update-report-insights.com'
-        });
-
-        const projectId = createProjectResponse.body.id;
-
-        const createReportResponse = await createReport({
+        const latestResponse = await createReport({
             cookie,
             projectId,
-            title: 'Old report title',
-            summary: 'Old summary',
-            accessibilityScore: 70,
-            performanceScore: 71,
-            seoScore: 72,
-            uxScore: 73
+            groupId: group.id,
+            title: 'Homepage mobile - July snapshot',
+            summary: 'Latest summary',
+            pageUrl: 'https://report-project.com/',
+            accessibilityScore: 97,
+            performanceScore: 75,
+            seoScore: 98,
+            bestPracticesScore: 90,
+            agenticBrowsingScore: 79,
+            insights: buildInsightsWithUserTimings(850, 3200)
         });
 
+        await setReportCreatedAt(baselineResponse.body.id, '2026-06-08T09:30:00.000Z');
+        await setReportCreatedAt(latestResponse.body.id, '2026-07-08T09:30:00.000Z');
+
         const response = await request(app)
-            .patch(`/reports/${createReportResponse.body.id}`)
-            .set('Cookie', cookie)
-            .send({
-                insights: validInsights
-            });
+            .get(`/reports/${latestResponse.body.id}`)
+            .set('Cookie', cookie);
 
         expect(response.status).toBe(200);
-        expect(response.body.insights).toEqual(validInsights);
-        expect(response.body.title).toBe('Old report title');
-    });
-
-    it('rejects malformed report insights on update', async () => {
-        const cookie = await registerAndLoginAs({
-            name: 'Phil',
-            email: 'phil-bad-insights-update@example.com'
-        });
-
-        const createProjectResponse = await createProject({
-            cookie,
-            name: 'Bad update insights project',
-            url: 'https://bad-update-insights.com'
-        });
-
-        const createReportResponse = await createReport({
-            cookie,
-            projectId: createProjectResponse.body.id,
-            title: 'Old report title',
-            summary: 'Old summary',
-            accessibilityScore: 70,
-            performanceScore: 71,
-            seoScore: 72,
-            uxScore: 73
-        });
-
-        const response = await request(app)
-            .patch(`/reports/${createReportResponse.body.id}`)
-            .set('Cookie', cookie)
-            .send({
-                insights: {
-                    source: 'PAGESPEED'
+        expect(response.body.comparison).toEqual({
+            previousReportId: baselineResponse.body.id,
+            previousCreatedAt: '2026-06-08T09:30:00.000Z',
+            scores: {
+                performanceScore: 7,
+                accessibilityScore: 0,
+                seoScore: -2,
+                bestPracticesScore: 4,
+                agenticBrowsingScore: -3
+            },
+            userTimings: [
+                {
+                    name: 'app:hydrate',
+                    entryType: 'measure',
+                    currentValue: 850,
+                    previousValue: 1270,
+                    delta: -420,
+                    unit: 'ms',
+                    previousReportId: baselineResponse.body.id,
+                    previousCreatedAt: '2026-06-08T09:30:00.000Z'
+                },
+                {
+                    name: 'app:ready',
+                    entryType: 'mark',
+                    currentValue: 3200,
+                    previousValue: 3000,
+                    delta: 200,
+                    unit: 'ms',
+                    previousReportId: baselineResponse.body.id,
+                    previousCreatedAt: '2026-06-08T09:30:00.000Z'
                 }
+            ]
+        });
+    });
+
+    it('keeps comparisons scoped to the same group', async () => {
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
+        const secondGroupResponse = await createReportGroup({
+            cookie,
+            projectId,
+            name: 'Homepage desktop',
+            pageUrl: 'https://report-project.com/',
+            strategy: 'desktop'
+        });
+        const otherGroupReportResponse = await createReport({
+            cookie,
+            projectId,
+            groupId: secondGroupResponse.body.id,
+            title: 'Desktop baseline',
+            summary: 'Desktop baseline',
+            pageUrl: 'https://report-project.com/',
+            accessibilityScore: 90,
+            performanceScore: 90,
+            seoScore: 90,
+            bestPracticesScore: 90,
+            agenticBrowsingScore: 90
+        });
+        const firstGroupReportResponse = await createReport({
+            cookie,
+            projectId,
+            groupId: group.id,
+            title: 'Mobile first report',
+            summary: 'Mobile first report',
+            pageUrl: 'https://report-project.com/',
+            accessibilityScore: 80,
+            performanceScore: 80,
+            seoScore: 80,
+            bestPracticesScore: 80,
+            agenticBrowsingScore: 80
+        });
+
+        await setReportCreatedAt(otherGroupReportResponse.body.id, '2026-06-08T09:30:00.000Z');
+        await setReportCreatedAt(firstGroupReportResponse.body.id, '2026-07-08T09:30:00.000Z');
+
+        const response = await request(app)
+            .get(`/reports/${firstGroupReportResponse.body.id}`)
+            .set('Cookie', cookie);
+
+        expect(response.status).toBe(200);
+        expect(response.body.comparison).toBeNull();
+    });
+
+    it('compares against the true previous report outside pagination and search results', async () => {
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
+        const baselineResponse = await createReport({
+            cookie,
+            projectId,
+            groupId: group.id,
+            title: 'June baseline',
+            summary: 'Hidden by search',
+            pageUrl: 'https://report-project.com/',
+            accessibilityScore: 90,
+            performanceScore: 70,
+            seoScore: 90,
+            bestPracticesScore: 90,
+            agenticBrowsingScore: 90
+        });
+        const latestResponse = await createReport({
+            cookie,
+            projectId,
+            groupId: group.id,
+            title: 'July target',
+            summary: 'Visible target',
+            pageUrl: 'https://report-project.com/',
+            accessibilityScore: 91,
+            performanceScore: 75,
+            seoScore: 89,
+            bestPracticesScore: 90,
+            agenticBrowsingScore: 92
+        });
+
+        await setReportCreatedAt(baselineResponse.body.id, '2026-06-08T09:30:00.000Z');
+        await setReportCreatedAt(latestResponse.body.id, '2026-07-08T09:30:00.000Z');
+
+        const response = await request(app)
+            .get(`/projects/${projectId}/reports?search=target&limit=1`)
+            .set('Cookie', cookie);
+
+        expect(response.status).toBe(200);
+        expect(response.body.data).toHaveLength(1);
+        expect(response.body.data[0].id).toBe(latestResponse.body.id);
+        expect(response.body.data[0].comparison.previousReportId).toBe(baselineResponse.body.id);
+        expect(response.body.data[0].comparison.scores).toEqual({
+            performanceScore: 5,
+            accessibilityScore: 1,
+            seoScore: -1,
+            bestPracticesScore: 0,
+            agenticBrowsingScore: 2
+        });
+    });
+
+    it('updates report fields without replacing stored insights', async () => {
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
+        const secondGroupResponse = await createReportGroup({
+            cookie,
+            projectId,
+            name: 'Homepage desktop',
+            pageUrl: 'https://report-project.com/',
+            strategy: 'desktop'
+        });
+        const createReportResponse = await createReport({
+            cookie,
+            projectId,
+            groupId: group.id,
+            title: 'Old report title',
+            summary: 'Old summary',
+            pageUrl: 'https://report-project.com/',
+            accessibilityScore: 70,
+            performanceScore: 71,
+            seoScore: 72,
+            bestPracticesScore: 73,
+            agenticBrowsingScore: 74,
+            insights: validInsights
+        });
+
+        const response = await request(app)
+            .patch(`/reports/${createReportResponse.body.id}`)
+            .set('Cookie', cookie)
+            .send({
+                groupId: secondGroupResponse.body.id,
+                title: 'New report title',
+                summary: 'New summary',
+                pageUrl: 'https://report-project.com/',
+                accessibilityScore: 90,
+                performanceScore: 95,
+                seoScore: 96,
+                bestPracticesScore: 97,
+                agenticBrowsingScore: 88
+            });
+
+        expect(response.status).toBe(200);
+        expect(response.body).toMatchObject({
+            groupId: secondGroupResponse.body.id,
+            title: 'New report title',
+            summary: 'New summary',
+            accessibilityScore: 90,
+            performanceScore: 95,
+            seoScore: 96,
+            bestPracticesScore: 97,
+            agenticBrowsingScore: 88,
+            insights: validInsights
+        });
+        expect(response.body.group.strategy).toBe('desktop');
+        expect(response.body).not.toHaveProperty('uxScore');
+    });
+
+    it('rejects report updates that include insights', async () => {
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
+        const createReportResponse = await createReport({
+            cookie,
+            projectId,
+            groupId: group.id,
+            title: 'Old report title',
+            summary: 'Old summary',
+            pageUrl: 'https://report-project.com/',
+            accessibilityScore: 70,
+            performanceScore: 71,
+            seoScore: 72,
+            bestPracticesScore: 73,
+            agenticBrowsingScore: 74
+        });
+
+        const response = await request(app)
+            .patch(`/reports/${createReportResponse.body.id}`)
+            .set('Cookie', cookie)
+            .send({
+                ...buildReportBody(group.id),
+                insights: validInsights
             });
 
         expect(response.status).toBe(400);
     });
 
-    it('rejects report update when not authenticated', async () => {
-        const cookie = await registerAndLoginAs({
-            name: 'Phil',
-            email: 'phil@example.com'
-        });
-
-        const createProjectResponse = await createProject({
-            cookie,
-            name: 'Blocked update project',
-            url: 'https://blocked-update-report.com'
-        });
-
-        const projectId = createProjectResponse.body.id;
-
+    it('protects report routes with authentication and ownership checks', async () => {
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
         const createReportResponse = await createReport({
             cookie,
             projectId,
-            title: 'Old report title',
-            summary: 'Old summary',
-            accessibilityScore: 70,
-            performanceScore: 71,
-            seoScore: 72,
-            uxScore: 73
-        });
-
-        const reportId = createReportResponse.body.id;
-
-        const response = await request(app)
-            .patch(`/reports/${reportId}`)
-            .send({
-                title: 'Blocked change'
-            });
-
-        expect(response.status).toBe(401);
-        expect(response.body).toEqual({
-            error: 'Not authenticated'
-        });
-    });
-
-    it('rejects report update by a different authenticated user', async () => {
-        const ownerCookie = await registerAndLoginAs({
-            name: 'Owner',
-            email: 'owner@example.com'
-        });
-
-        const createProjectResponse = await createProject({
-            cookie: ownerCookie,
-            name: 'Owner report project',
-            url: 'https://owner-update-report.com'
-        });
-
-        const projectId = createProjectResponse.body.id;
-
-        const createReportResponse = await createReport({
-            cookie: ownerCookie,
-            projectId,
+            groupId: group.id,
             title: 'Owner report',
             summary: 'Owner summary',
+            pageUrl: 'https://report-project.com/',
             accessibilityScore: 70,
             performanceScore: 71,
             seoScore: 72,
-            uxScore: 73
+            bestPracticesScore: 73,
+            agenticBrowsingScore: 74
         });
 
-        const reportId = createReportResponse.body.id;
+        const unauthenticatedListResponse = await request(app)
+            .get(`/projects/${projectId}/reports`);
+        const unauthenticatedUpdateResponse = await request(app)
+            .patch(`/reports/${createReportResponse.body.id}`)
+            .send(buildReportBody(group.id));
+
+        expect(unauthenticatedListResponse.status).toBe(401);
+        expect(unauthenticatedUpdateResponse.status).toBe(401);
 
         const otherUserCookie = await registerAndLoginAs({
             name: 'Other user',
             email: 'other@example.com'
         });
 
-        const response = await request(app)
-            .patch(`/reports/${reportId}`)
-            .set('Cookie', otherUserCookie)
-            .send({
-                title: 'Blocked update'
-            });
+        const forbiddenListResponse = await request(app)
+            .get(`/projects/${projectId}/reports`)
+            .set('Cookie', otherUserCookie);
+        const forbiddenReadResponse = await request(app)
+            .get(`/reports/${createReportResponse.body.id}`)
+            .set('Cookie', otherUserCookie);
+        const forbiddenDeleteResponse = await request(app)
+            .delete(`/reports/${createReportResponse.body.id}`)
+            .set('Cookie', otherUserCookie);
 
-        expect(response.status).toBe(403);
-        expect(response.body).toEqual({
-            error: 'Forbidden'
-        });
+        expect(forbiddenListResponse.status).toBe(403);
+        expect(forbiddenReadResponse.status).toBe(403);
+        expect(forbiddenDeleteResponse.status).toBe(403);
     });
 
     it('deletes a report when owned by the authenticated user', async () => {
-        const cookie = await registerAndLoginAs({
-            name: 'Phil',
-            email: 'phil@example.com'
-        });
-
-        const createProjectResponse = await createProject({
-            cookie,
-            name: 'Delete report project',
-            url: 'https://delete-report.com'
-        });
-
-        const projectId = createProjectResponse.body.id;
-
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
         const createReportResponse = await createReport({
             cookie,
             projectId,
+            groupId: group.id,
             title: 'Delete me',
             summary: 'Delete summary',
+            pageUrl: 'https://report-project.com/',
             accessibilityScore: 70,
             performanceScore: 71,
             seoScore: 72,
-            uxScore: 73
+            bestPracticesScore: 73,
+            agenticBrowsingScore: 74
         });
 
-        const reportId = createReportResponse.body.id;
-
         const deleteResponse = await request(app)
-            .delete(`/reports/${reportId}`)
+            .delete(`/reports/${createReportResponse.body.id}`)
             .set('Cookie', cookie);
 
         expect(deleteResponse.status).toBe(204);
 
         const getResponse = await request(app)
-            .get(`/reports/${reportId}`)
-            .set('Cookie', cookie);
-        expect(getResponse.status).toBe(404);
-    });
-
-    it('rejects report deletion by a different authenticated user', async () => {
-        const ownerCookie = await registerAndLoginAs({
-            name: 'Owner',
-            email: 'owner@example.com'
-        });
-
-        const createProjectResponse = await createProject({
-            cookie: ownerCookie,
-            name: 'Owner delete report project',
-            url: 'https://owner-delete-report.com'
-        });
-
-        const projectId = createProjectResponse.body.id;
-
-        const createReportResponse = await createReport({
-            cookie: ownerCookie,
-            projectId,
-            title: 'Owner report',
-            summary: 'Owner summary',
-            accessibilityScore: 70,
-            performanceScore: 71,
-            seoScore: 72,
-            uxScore: 73
-        });
-
-        const reportId = createReportResponse.body.id;
-
-        const otherUserCookie = await registerAndLoginAs({
-            name: 'Other user',
-            email: 'other@example.com'
-        });
-
-        const response = await request(app)
-            .delete(`/reports/${reportId}`)
-            .set('Cookie', otherUserCookie);
-
-        expect(response.status).toBe(403);
-        expect(response.body).toEqual({
-            error: 'Forbidden'
-        });
-    });
-
-    it('rejects report listing by a different authenticated user', async () => {
-        const ownerCookie = await registerAndLoginAs({
-            name: 'Owner',
-            email: 'owner-list-reports@example.com'
-        });
-
-        const createProjectResponse = await createProject({
-            cookie: ownerCookie,
-            name: 'Owner report list project',
-            url: 'https://owner-report-list-project.com'
-        });
-
-        const projectId = createProjectResponse.body.id;
-
-        await createReport({
-            cookie: ownerCookie,
-            projectId,
-            title: 'Owner report',
-            summary: 'Owner summary',
-            accessibilityScore: 70,
-            performanceScore: 71,
-            seoScore: 72,
-            uxScore: 73
-        });
-
-        const otherUserCookie = await registerAndLoginAs({
-            name: 'Other user',
-            email: 'other-list-reports@example.com'
-        });
-
-        const response = await request(app)
-            .get(`/projects/${projectId}/reports`)
-            .set('Cookie', otherUserCookie);
-
-        expect(response.status).toBe(403);
-        expect(response.body).toEqual({
-            error: 'Forbidden'
-        });
-    });
-
-    it('rejects report lookup by a different authenticated user', async () => {
-        const ownerCookie = await registerAndLoginAs({
-            name: 'Owner',
-            email: 'owner-read-report@example.com'
-        });
-
-        const createProjectResponse = await createProject({
-            cookie: ownerCookie,
-            name: 'Owner read report project',
-            url: 'https://owner-read-report-project.com'
-        });
-
-        const projectId = createProjectResponse.body.id;
-
-        const createReportResponse = await createReport({
-            cookie: ownerCookie,
-            projectId,
-            title: 'Owner report',
-            summary: 'Owner summary',
-            accessibilityScore: 70,
-            performanceScore: 71,
-            seoScore: 72,
-            uxScore: 73
-        });
-
-        const otherUserCookie = await registerAndLoginAs({
-            name: 'Other user',
-            email: 'other-read-report@example.com'
-        });
-
-        const response = await request(app)
             .get(`/reports/${createReportResponse.body.id}`)
-            .set('Cookie', otherUserCookie);
+            .set('Cookie', cookie);
 
-        expect(response.status).toBe(403);
-        expect(response.body).toEqual({
-            error: 'Forbidden'
-        });
-    });
-
-    it('filters reports by search term', async () => {
-        const cookie = await registerAndLoginAs({
-            name: 'Phil',
-            email: 'phil@example.com'
-        });
-    
-        const createProjectResponse = await createProject({
-            cookie,
-            name: 'Searchable project',
-            url: 'https://searchable-project.com'
-        });
-    
-        const projectId = createProjectResponse.body.id;
-    
-        await createReport({
-            cookie,
-            projectId,
-            title: 'Homepage audit',
-            summary: 'Main landing page review',
-            accessibilityScore: 85,
-            performanceScore: 90,
-            seoScore: 78,
-            uxScore: 82
-        });
-    
-        await createReport({
-            cookie,
-            projectId,
-            title: 'Checkout audit',
-            summary: 'Purchase flow review',
-            accessibilityScore: 80,
-            performanceScore: 88,
-            seoScore: 76,
-            uxScore: 79
-        });
-    
-        const response = await request(app).get(
-            `/projects/${projectId}/reports?search=checkout`
-        ).set('Cookie', cookie);
-    
-        expect(response.status).toBe(200);
-        expect(response.body.data).toHaveLength(1);
-        expect(response.body.data[0].title).toBe('Checkout audit');
-        expect(response.body.pagination.total).toBe(1);
-    });
-    
-    it('sorts reports by title ascending', async () => {
-        const cookie = await registerAndLoginAs({
-            name: 'Phil',
-            email: 'phil@example.com'
-        });
-    
-        const createProjectResponse = await createProject({
-            cookie,
-            name: 'Sortable reports project',
-            url: 'https://sortable-reports.com'
-        });
-    
-        const projectId = createProjectResponse.body.id;
-    
-        await createReport({
-            cookie,
-            projectId,
-            title: 'Zoo audit',
-            summary: 'Last alphabetically',
-            accessibilityScore: 85,
-            performanceScore: 90,
-            seoScore: 78,
-            uxScore: 82
-        });
-    
-        await createReport({
-            cookie,
-            projectId,
-            title: 'Alpha audit',
-            summary: 'First alphabetically',
-            accessibilityScore: 85,
-            performanceScore: 90,
-            seoScore: 78,
-            uxScore: 82
-        });
-    
-        const response = await request(app).get(
-            `/projects/${projectId}/reports?sort=title&order=asc`
-        ).set('Cookie', cookie);
-    
-        expect(response.status).toBe(200);
-        expect(response.body.data[0].title).toBe('Alpha audit');
-        expect(response.body.data[1].title).toBe('Zoo audit');
+        expect(getResponse.status).toBe(404);
     });
 });

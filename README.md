@@ -20,21 +20,25 @@ It was built as a practical learning and portfolio project to strengthen back en
 - Session records stored in PostgreSQL
 
 ### Projects
-- List authenticated user's projects
+- List authenticated user's projects with compact report summaries
 - Get an owned project by id
 - Create a project when authenticated
 - Update a project when authenticated and authorised
 - Delete a project when authenticated and authorised
-- Paginated list endpoint with `page` and `limit`
+- Paginated list endpoint with `page`, `limit`, `search`, `sort`, and `order`
 
 ### Reports
+- List report groups for an owned project
+- Create report groups for an owned project
 - List reports for an owned project
 - Get an owned report by id
 - Create a report for a project when authenticated and authorised
 - Update a report when authenticated and authorised
 - Delete a report when authenticated and authorised
-- Paginated list endpoint for project reports with `page` and `limit`
-- Preview PageSpeed report insights for an owned project before saving them to a report
+- Paginated list endpoint for project reports with `page`, `limit`, `search`, `sort`, `order`, and optional `groupId`
+- Score and User Timing comparisons against the previous report in the same group
+- Full-history report group trend data for frontend charts
+- Preview PageSpeed metrics, page weight, opportunities, failed/warning audits, and User Timings before saving them to a report
 
 ### Security and access rules
 - Project and report read routes require authentication
@@ -313,7 +317,20 @@ Response example:
             "id": "project-id",
             "name": "My project",
             "url": "https://example.com",
-            "createdAt": "2026-04-01T13:15:06.935Z"
+            "createdAt": "2026-04-01T13:15:06.935Z",
+            "summary": {
+                "reportCount": 2,
+                "reportGroupCount": 1,
+                "latestReportCreatedAt": "2026-07-08T08:00:00.000Z",
+                "latestReportTitle": "Homepage mobile audit",
+                "latestScores": {
+                    "performanceScore": 94,
+                    "accessibilityScore": 89,
+                    "seoScore": 97,
+                    "bestPracticesScore": 93,
+                    "agenticBrowsingScore": 84
+                }
+            }
         }
     ],
     "pagination": {
@@ -361,6 +378,69 @@ Response:
 
 ### Report routes
 
+#### `GET /projects/:id/report-groups`
+Get report groups for an owned project.
+
+Response example:
+
+```json
+[
+    {
+        "id": "report-group-id",
+        "projectId": "project-id",
+        "name": "Homepage mobile",
+        "pageUrl": "https://example.com/",
+        "strategy": "mobile",
+        "createdAt": "2026-07-08T08:00:00.000Z"
+    }
+]
+```
+
+#### `POST /projects/:id/report-groups`
+Create a report group for an owned project.
+
+Request body example:
+
+```json
+{
+    "name": "Homepage mobile",
+    "pageUrl": "https://example.com/",
+    "strategy": "mobile"
+}
+```
+
+#### `GET /projects/:id/report-group-trends`
+Get full-history score trend data for report groups in an owned project. This endpoint is independent of report list pagination, search, and sort order.
+
+Supported query params:
+- `groupId`
+
+Response example:
+
+```json
+[
+    {
+        "groupId": "report-group-id",
+        "groupName": "Homepage mobile",
+        "pageUrl": "https://example.com/",
+        "strategy": "mobile",
+        "points": [
+            {
+                "id": "report-id",
+                "title": "Homepage mobile - July snapshot",
+                "pageUrl": "https://example.com/",
+                "createdAt": "2026-07-08T09:30:00.000Z",
+                "performanceScore": 75,
+                "accessibilityScore": 97,
+                "seoScore": 98,
+                "bestPracticesScore": 90,
+                "agenticBrowsingScore": 79
+            }
+        ]
+    }
+]
+```
+
 #### `GET /projects/:id/reports`
 Get a paginated list of reports for an owned project.
 
@@ -368,6 +448,7 @@ Supported query params:
 - `page`
 - `limit`
 - `search`
+- `groupId`
 - `sort`
 - `order`
 
@@ -379,14 +460,46 @@ Response example:
         {
             "id": "report-id",
             "projectId": "project-id",
+            "groupId": "report-group-id",
+            "group": {
+                "id": "report-group-id",
+                "name": "Homepage mobile",
+                "pageUrl": "https://example.com/",
+                "strategy": "mobile"
+            },
             "title": "Homepage audit",
             "summary": "Initial report for homepage checks",
+            "pageUrl": "https://example.com/",
             "accessibilityScore": 85,
             "performanceScore": 90,
             "seoScore": 78,
-            "uxScore": 82,
+            "bestPracticesScore": 92,
+            "agenticBrowsingScore": 80,
             "insights": null,
-            "createdAt": "2026-04-01T13:15:06.935Z"
+            "comparison": {
+                "previousReportId": "previous-report-id",
+                "previousCreatedAt": "2026-06-08T09:30:00.000Z",
+                "scores": {
+                    "performanceScore": 7,
+                    "accessibilityScore": 0,
+                    "seoScore": -2,
+                    "bestPracticesScore": 4,
+                    "agenticBrowsingScore": -3
+                },
+                "userTimings": [
+                    {
+                        "name": "app:hydrate",
+                        "entryType": "measure",
+                        "currentValue": 850,
+                        "previousValue": 1270,
+                        "delta": -420,
+                        "unit": "ms",
+                        "previousReportId": "previous-report-id",
+                        "previousCreatedAt": "2026-06-08T09:30:00.000Z"
+                    }
+                ]
+            },
+            "createdAt": "2026-07-08T08:00:00.000Z"
         }
     ],
     "pagination": {
@@ -405,16 +518,19 @@ Request body example:
 
 ```json
 {
+    "groupId": "report-group-id",
     "title": "Homepage audit",
     "summary": "Initial report for homepage checks",
+    "pageUrl": "https://example.com/",
     "accessibilityScore": 85,
     "performanceScore": 90,
     "seoScore": 78,
-    "uxScore": 82
+    "bestPracticesScore": 92,
+    "agenticBrowsingScore": 80
 }
 ```
 
-Add optional normalised `insights` to save a reviewed PageSpeed import alongside the manual scores.
+Add optional normalised `insights` to save a reviewed PageSpeed import alongside the manual scores. Report responses include `comparison: null` for the first report in a group, then score deltas and any comparable User Timing deltas for later reports.
 
 #### `POST /projects/:projectId/report-insight-imports`
 Fetch and normalise PageSpeed insights for review. Requires authentication and ownership of the parent project. This endpoint does not create a report.
@@ -429,7 +545,7 @@ Request body example:
 }
 ```
 
-The response includes normalised scores, metrics, field data placeholder, and up to five opportunities. The frontend can pass that `insights` object into report create/update after user review.
+The response includes normalised scores, page weight, lab metrics, field data placeholder, up to five opportunities, failed/warning audit references, and User Timings. The frontend can pass that `insights` object into report create after user review. Report update requests reject `insights` so existing import snapshots are not replaced accidentally.
 
 #### `GET /reports/:id`
 Get an owned report by id.
@@ -441,8 +557,15 @@ Request body example:
 
 ```json
 {
+    "groupId": "report-group-id",
     "title": "Updated report title",
-    "performanceScore": 95
+    "summary": "Updated report summary",
+    "pageUrl": "https://example.com/",
+    "accessibilityScore": 88,
+    "performanceScore": 95,
+    "seoScore": 80,
+    "bestPracticesScore": 88,
+    "agenticBrowsingScore": 82
 }
 ```
 
@@ -462,6 +585,7 @@ Request body validation is handled with Zod for:
 - project update payloads
 - report create payloads
 - report update payloads
+- report group create payloads
 - report insight import payloads
 - persisted report insights
 
@@ -476,14 +600,17 @@ The app uses PostgreSQL for:
 - users
 - sessions
 - projects
+- report groups
 - reports
 
 ### Main relationships
 - a user can own many projects
 - a project belongs to one user
+- a project can have many report groups
 - a project can have many reports
-- a report belongs to one project
+- a report belongs to one project and can be attached to one report group
 - a report can optionally store normalised PageSpeed or future CrUX insights
+- report comparisons are derived from the nearest earlier report in the same group
 - a session belongs to one user
 
 ## Migrations
@@ -507,6 +634,7 @@ Current migrations include:
 - `003_add_report_score_checks.sql`
 - `004_add_read_path_indexes.sql`
 - `005_add_report_insights.sql`
+- `006_add_report_groups_and_replace_ux_score.sql`
 
 ## Seed data
 
@@ -533,9 +661,11 @@ npm run seed:test-data
 ```
 
 The bulk seed scripts delete existing rows before inserting a small deterministic dataset of:
-- users
-- projects
-- reports
+- one local test user
+- realistic projects
+- flat report groups, such as `Homepage mobile` and `Homepage desktop`
+- dated report history using the five-score report contract, with enough points for trend graphs
+- normalised PageSpeed insights on every seeded report, including page weight, audit refs, and User Timings
 
 By default, the bulk seed scripts only run without confirmation against local database hosts (`localhost`, `127.0.0.1`, or `::1`) outside production. If `SEED_DATABASE_URL` is set, `NODE_ENV=production`, or the target database host is remote, set `ALLOW_DESTRUCTIVE_SEED=true` for that command to confirm the target database can be wiped.
 
@@ -653,18 +783,33 @@ curl -i -b cookies.txt -X POST http://localhost:3000/projects \
   -d '{"name":"My project","url":"https://example.com"}'
 ```
 
+### Create a report group with saved cookies
+
+```bash
+curl -i -b cookies.txt -X POST http://localhost:3000/projects/<project-id>/report-groups \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name":"Homepage mobile",
+    "pageUrl":"https://example.com/",
+    "strategy":"mobile"
+  }'
+```
+
 ### Create a report with saved cookies
 
 ```bash
 curl -i -b cookies.txt -X POST http://localhost:3000/projects/<project-id>/reports \
   -H "Content-Type: application/json" \
   -d '{
+    "groupId":"<report-group-id>",
     "title":"Homepage audit",
     "summary":"Initial report for homepage checks",
+    "pageUrl":"https://example.com/",
     "accessibilityScore":85,
     "performanceScore":90,
     "seoScore":78,
-    "uxScore":82
+    "bestPracticesScore":92,
+    "agenticBrowsingScore":80
   }'
 ```
 
@@ -677,7 +822,7 @@ curl -i "http://localhost:3000/projects?page=1&limit=2"
 ### Get paginated reports for a project
 
 ```bash
-curl -i "http://localhost:3000/projects/<project-id>/reports?page=1&limit=2"
+curl -i "http://localhost:3000/projects/<project-id>/reports?page=1&limit=2&groupId=<report-group-id>"
 ```
 
 ## Current status

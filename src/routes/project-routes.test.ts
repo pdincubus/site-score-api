@@ -2,7 +2,12 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../app.js';
 import { clearTables } from '../test/test-db.js';
-import { createProject, registerAndLoginAs } from '../test/test-helpers.js';
+import {
+    createProject,
+    createReport,
+    createReportGroup,
+    registerAndLoginAs
+} from '../test/test-helpers.js';
 
 describe('Project routes', () => {
     beforeEach(async () => {
@@ -348,6 +353,111 @@ describe('Project routes', () => {
         expect(response.body.data).toHaveLength(1);
         expect(response.body.data[0].name).toBe('Owner project');
         expect(response.body.pagination.total).toBe(1);
+    });
+
+    it('includes an empty summary for projects without reports', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil@example.com'
+        });
+
+        await createProject({
+            cookie,
+            name: 'Empty project',
+            url: 'https://empty-project.com'
+        });
+
+        const response = await request(app)
+            .get('/projects')
+            .set('Cookie', cookie);
+
+        expect(response.status).toBe(200);
+        expect(response.body.data).toHaveLength(1);
+        expect(response.body.data[0].summary).toEqual({
+            reportCount: 0,
+            reportGroupCount: 0,
+            latestReportCreatedAt: null,
+            latestReportTitle: null,
+            latestScores: null
+        });
+    });
+
+    it('summarises report counts, group counts, and latest report scores in the project list', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil-summary@example.com'
+        });
+
+        const projectResponse = await createProject({
+            cookie,
+            name: 'Summarised project',
+            url: 'https://summarised-project.com'
+        });
+        const projectId = projectResponse.body.id;
+
+        const homepageGroupResponse = await createReportGroup({
+            cookie,
+            projectId,
+            name: 'Homepage mobile',
+            pageUrl: 'https://summarised-project.com/',
+            strategy: 'mobile'
+        });
+
+        const contactGroupResponse = await createReportGroup({
+            cookie,
+            projectId,
+            name: 'Contact desktop',
+            pageUrl: 'https://summarised-project.com/contact',
+            strategy: 'desktop'
+        });
+
+        await createReport({
+            cookie,
+            projectId,
+            groupId: homepageGroupResponse.body.id,
+            title: 'Older homepage report',
+            summary: 'Older homepage summary',
+            pageUrl: 'https://summarised-project.com/',
+            performanceScore: 72,
+            accessibilityScore: 83,
+            seoScore: 91,
+            bestPracticesScore: 88,
+            agenticBrowsingScore: 76
+        });
+
+        const latestReportResponse = await createReport({
+            cookie,
+            projectId,
+            groupId: contactGroupResponse.body.id,
+            title: 'Latest contact report',
+            summary: 'Latest contact summary',
+            pageUrl: 'https://summarised-project.com/contact',
+            performanceScore: 94,
+            accessibilityScore: 89,
+            seoScore: 97,
+            bestPracticesScore: 93,
+            agenticBrowsingScore: 84
+        });
+
+        const response = await request(app)
+            .get('/projects')
+            .set('Cookie', cookie);
+
+        expect(response.status).toBe(200);
+        expect(response.body.data).toHaveLength(1);
+        expect(response.body.data[0].summary).toEqual({
+            reportCount: 2,
+            reportGroupCount: 2,
+            latestReportCreatedAt: latestReportResponse.body.createdAt,
+            latestReportTitle: 'Latest contact report',
+            latestScores: {
+                performanceScore: 94,
+                accessibilityScore: 89,
+                seoScore: 97,
+                bestPracticesScore: 93,
+                agenticBrowsingScore: 84
+            }
+        });
     });
 
     it('rejects project lookup by a different authenticated user', async () => {

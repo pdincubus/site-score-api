@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { pool } from '../db/database.js';
 import { AppError } from '../errors/app-error.js';
 import type { PaginatedResponse } from '../types/pagination.js';
-import type { Project } from '../types/project.js';
+import type { Project, ProjectListItem } from '../types/project.js';
 import type { ProjectListQuery } from '../utils/pagination.js';
 
 type CreateProjectInput = {
@@ -19,6 +19,18 @@ type ProjectRow = {
     user_id: string;
 };
 
+type ProjectListRow = ProjectRow & {
+    report_count: number;
+    report_group_count: number;
+    latest_report_created_at: Date | null;
+    latest_report_title: string | null;
+    latest_performance_score: number | null;
+    latest_accessibility_score: number | null;
+    latest_seo_score: number | null;
+    latest_best_practices_score: number | null;
+    latest_agentic_browsing_score: number | null;
+};
+
 type UpdateProjectInput = {
     name?: string;
     url?: string;
@@ -33,62 +45,123 @@ function mapProjectRow(row: ProjectRow): Project {
     };
 }
 
+function mapProjectListRow(row: ProjectListRow): ProjectListItem {
+    const project = mapProjectRow(row);
+    const latestScores =
+        row.latest_performance_score === null ||
+        row.latest_accessibility_score === null ||
+        row.latest_seo_score === null ||
+        row.latest_best_practices_score === null ||
+        row.latest_agentic_browsing_score === null
+            ? null
+            : {
+                performanceScore: row.latest_performance_score,
+                accessibilityScore: row.latest_accessibility_score,
+                seoScore: row.latest_seo_score,
+                bestPracticesScore: row.latest_best_practices_score,
+                agenticBrowsingScore: row.latest_agentic_browsing_score
+            };
+
+    return {
+        ...project,
+        summary: {
+            reportCount: Number(row.report_count),
+            reportGroupCount: Number(row.report_group_count),
+            latestReportCreatedAt: row.latest_report_created_at?.toISOString() ?? null,
+            latestReportTitle: row.latest_report_title,
+            latestScores
+        }
+    };
+}
+
 async function getPaginatedProjects(
     query: ProjectListQuery,
     userId: string
-): Promise<PaginatedResponse<Project>> {
-    const sortColumn = query.sort === 'name' ? 'name' : 'created_at';
+): Promise<PaginatedResponse<ProjectListItem>> {
+    const sortColumn = query.sort === 'name' ? 'p.name' : 'p.created_at';
     const sortOrder = query.order === 'asc' ? 'ASC' : 'DESC';
     const searchTerm = query.search.trim();
+    const conditions = ['p.user_id = $1'];
+    const params: unknown[] = [userId];
 
-    const whereClause =
-        searchTerm === ''
-            ? `
-                WHERE user_id = $1
-            `
-            : `
-                WHERE user_id = $1
-                  AND (
-                    name ILIKE $2
-                    OR url ILIKE $2
-                  )
-            `;
+    if (searchTerm !== '') {
+        params.push(`%${searchTerm}%`);
+        conditions.push(`(p.name ILIKE $${params.length} OR p.url ILIKE $${params.length})`);
+    }
 
-    const totalParams =
-        searchTerm === ''
-            ? [userId]
-            : [userId, `%${searchTerm}%`];
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
     const totalResult = await pool.query<{ count: string }>(
         `
             SELECT COUNT(*) AS count
-            FROM projects
+            FROM projects p
             ${whereClause}
         `,
-        totalParams
+        params
     );
 
     const total = Number(totalResult.rows[0]?.count ?? 0);
+    const dataParams = [...params, query.limit, query.offset];
+    const limitParam = params.length + 1;
+    const offsetParam = params.length + 2;
 
-    const dataParams =
-        searchTerm === ''
-            ? [userId, query.limit, query.offset]
-            : [userId, `%${searchTerm}%`, query.limit, query.offset];
-
-    const result = await pool.query<ProjectRow>(
+    const result = await pool.query<ProjectListRow>(
         `
-            SELECT id, name, url, created_at, user_id
-            FROM projects
-            ${whereClause}
+            WITH page_projects AS (
+                SELECT p.id, p.name, p.url, p.created_at, p.user_id
+                FROM projects p
+                ${whereClause}
+                ORDER BY ${sortColumn} ${sortOrder}
+                LIMIT $${limitParam}
+                OFFSET $${offsetParam}
+            )
+            SELECT
+                p.id,
+                p.name,
+                p.url,
+                p.created_at,
+                p.user_id,
+                COALESCE(report_counts.report_count, 0)::int AS report_count,
+                COALESCE(report_group_counts.report_group_count, 0)::int AS report_group_count,
+                latest_report.created_at AS latest_report_created_at,
+                latest_report.title AS latest_report_title,
+                latest_report.performance_score AS latest_performance_score,
+                latest_report.accessibility_score AS latest_accessibility_score,
+                latest_report.seo_score AS latest_seo_score,
+                latest_report.best_practices_score AS latest_best_practices_score,
+                latest_report.agentic_browsing_score AS latest_agentic_browsing_score
+            FROM page_projects p
+            LEFT JOIN LATERAL (
+                SELECT COUNT(*)::int AS report_count
+                FROM reports r
+                WHERE r.project_id = p.id
+            ) report_counts ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT COUNT(*)::int AS report_group_count
+                FROM report_groups g
+                WHERE g.project_id = p.id
+            ) report_group_counts ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT
+                    r.title,
+                    r.created_at,
+                    r.performance_score,
+                    r.accessibility_score,
+                    r.seo_score,
+                    r.best_practices_score,
+                    r.agentic_browsing_score
+                FROM reports r
+                WHERE r.project_id = p.id
+                ORDER BY r.created_at DESC, r.id DESC
+                LIMIT 1
+            ) latest_report ON TRUE
             ORDER BY ${sortColumn} ${sortOrder}
-            LIMIT $${searchTerm === '' ? 2 : 3}
-            OFFSET $${searchTerm === '' ? 3 : 4}
         `,
         dataParams
     );
 
     return {
-        data: result.rows.map(mapProjectRow),
+        data: result.rows.map(mapProjectListRow),
         pagination: {
             page: query.page,
             limit: query.limit,
