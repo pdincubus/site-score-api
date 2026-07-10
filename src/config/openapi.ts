@@ -18,6 +18,10 @@ const openApiSpec = swaggerJSDoc({
                 description: 'Project management routes'
             },
             {
+                name: 'Clients',
+                description: 'Client management routes'
+            },
+            {
                 name: 'Reports',
                 description: 'Report management routes'
             }
@@ -81,13 +85,49 @@ const openApiSpec = swaggerJSDoc({
                             format: 'uri',
                             example: 'https://example.com'
                         },
+                        clientId: {
+                            type: 'string',
+                            nullable: true,
+                            example: '8c65aa37-d061-441c-8a8d-5f00f6235fb0'
+                        },
+                        archivedAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            nullable: true,
+                            example: null
+                        },
                         createdAt: {
                             type: 'string',
                             format: 'date-time',
                             example: '2026-04-01T13:15:06.935Z'
                         }
                     },
-                    required: ['id', 'name', 'url', 'createdAt']
+                    required: ['id', 'name', 'url', 'clientId', 'archivedAt', 'createdAt']
+                },
+                Client: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            example: '8c65aa37-d061-441c-8a8d-5f00f6235fb0'
+                        },
+                        name: {
+                            type: 'string',
+                            example: 'Crayons & Code'
+                        },
+                        archivedAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            nullable: true,
+                            example: null
+                        },
+                        createdAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            example: '2026-07-10T08:00:00.000Z'
+                        }
+                    },
+                    required: ['id', 'name', 'archivedAt', 'createdAt']
                 },
                 ProjectSummaryScores: {
                     type: 'object',
@@ -272,6 +312,12 @@ const openApiSpec = swaggerJSDoc({
                                 }
                             ]
                         },
+                        archivedAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            nullable: true,
+                            example: null
+                        },
                         createdAt: {
                             type: 'string',
                             format: 'date-time',
@@ -293,6 +339,7 @@ const openApiSpec = swaggerJSDoc({
                         'agenticBrowsingScore',
                         'insights',
                         'comparison',
+                        'archivedAt',
                         'createdAt'
                     ]
                 },
@@ -908,6 +955,11 @@ const openApiSpec = swaggerJSDoc({
                             type: 'string',
                             format: 'uri',
                             example: 'https://example.com'
+                        },
+                        clientId: {
+                            type: 'string',
+                            nullable: true,
+                            example: '8c65aa37-d061-441c-8a8d-5f00f6235fb0'
                         }
                     },
                     required: ['name', 'url']
@@ -923,8 +975,35 @@ const openApiSpec = swaggerJSDoc({
                             type: 'string',
                             format: 'uri',
                             example: 'https://updated-example.com'
+                        },
+                        clientId: {
+                            type: 'string',
+                            nullable: true,
+                            example: null
                         }
                     }
+                },
+                CreateClientRequest: {
+                    type: 'object',
+                    properties: {
+                        name: {
+                            type: 'string',
+                            maxLength: 160,
+                            example: 'Crayons & Code'
+                        }
+                    },
+                    required: ['name']
+                },
+                UpdateClientRequest: {
+                    type: 'object',
+                    properties: {
+                        name: {
+                            type: 'string',
+                            maxLength: 160,
+                            example: 'Crayons and Code'
+                        }
+                    },
+                    required: ['name']
                 },
                 CreateReportGroupRequest: {
                     type: 'object',

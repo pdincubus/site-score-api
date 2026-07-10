@@ -4,12 +4,14 @@ import { AppError } from '../errors/app-error.js';
 import { getProjectOwnerId } from '../services/project-service.js';
 import { getReportGroupProjectId } from '../services/report-group-service.js';
 import {
+    archiveReportById,
     createNewReport,
     deleteReportById,
     getPaginatedReportsByProjectId,
     getReportById as getReportByIdFromService,
     getReportProjectAccess,
     getReportProjectOwnerId,
+    restoreReportById,
     updateReportById
 } from '../services/report-service.js';
 import { getReportListQuery } from '../utils/pagination.js';
@@ -235,10 +237,64 @@ async function deleteReport(req: Request, res: Response) {
     res.status(204).send();
 }
 
+async function archiveReport(req: Request, res: Response) {
+    const id = getSingleParam(req.params.id);
+
+    if (!req.currentUser) {
+        throw new AppError('Not authenticated', 401);
+    }
+
+    const ownerId = await getReportProjectOwnerId(id);
+
+    if (!ownerId) {
+        throw new AppError('Report not found', 404);
+    }
+
+    if (ownerId !== req.currentUser.id) {
+        throw new AppError('Forbidden', 403);
+    }
+
+    const report = await archiveReportById(id);
+
+    if (!report) {
+        throw new AppError('Report not found', 404);
+    }
+
+    res.status(200).json(report);
+}
+
+async function restoreReport(req: Request, res: Response) {
+    const id = getSingleParam(req.params.id);
+
+    if (!req.currentUser) {
+        throw new AppError('Not authenticated', 401);
+    }
+
+    const ownerId = await getReportProjectOwnerId(id);
+
+    if (!ownerId) {
+        throw new AppError('Report not found', 404);
+    }
+
+    if (ownerId !== req.currentUser.id) {
+        throw new AppError('Forbidden', 403);
+    }
+
+    const report = await restoreReportById(id);
+
+    if (!report) {
+        throw new AppError('Report not found', 404);
+    }
+
+    res.status(200).json(report);
+}
+
 export {
+    archiveReport,
     createReport,
     deleteReport,
     getProjectReports,
     getReportById,
+    restoreReport,
     updateReport
 };

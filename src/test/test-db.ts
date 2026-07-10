@@ -5,6 +5,7 @@ async function clearTables() {
     await pool.query('DELETE FROM reports');
     await pool.query('DELETE FROM report_groups');
     await pool.query('DELETE FROM projects');
+    await pool.query('DELETE FROM clients');
     await pool.query('DELETE FROM users');
 }
 

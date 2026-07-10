@@ -21,8 +21,29 @@ CREATE TABLE IF NOT EXISTS projects (
     name TEXT NOT NULL,
     url TEXT NOT NULL UNIQUE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    client_id UUID,
+    archived_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS clients (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    archived_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+DO $$
+BEGIN
+    ALTER TABLE projects
+    ADD CONSTRAINT projects_client_fk
+    FOREIGN KEY (client_id)
+    REFERENCES clients(id)
+    ON DELETE SET NULL;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS report_groups (
     id UUID PRIMARY KEY,
@@ -47,6 +68,7 @@ CREATE TABLE IF NOT EXISTS reports (
     best_practices_score INTEGER NOT NULL CHECK (best_practices_score BETWEEN 0 AND 100),
     agentic_browsing_score INTEGER NOT NULL CHECK (agentic_browsing_score BETWEEN 0 AND 100),
     insights JSONB,
+    archived_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT reports_group_project_fk
     FOREIGN KEY (group_id, project_id)
@@ -55,6 +77,9 @@ CREATE TABLE IF NOT EXISTS reports (
 
 CREATE INDEX IF NOT EXISTS projects_user_created_at_idx
 ON projects (user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS projects_user_archived_created_at_idx
+ON projects (user_id, archived_at, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS projects_user_name_idx
 ON projects (user_id, name);
@@ -65,11 +90,20 @@ ON projects USING GIN (name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS projects_url_trgm_idx
 ON projects USING GIN (url gin_trgm_ops);
 
+CREATE INDEX IF NOT EXISTS clients_user_archived_name_idx
+ON clients (user_id, archived_at, name);
+
+CREATE INDEX IF NOT EXISTS clients_name_trgm_idx
+ON clients USING GIN (name gin_trgm_ops);
+
 CREATE INDEX IF NOT EXISTS report_groups_project_name_idx
 ON report_groups (project_id, name, created_at);
 
 CREATE INDEX IF NOT EXISTS reports_project_created_at_idx
 ON reports (project_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS reports_project_archived_created_at_idx
+ON reports (project_id, archived_at, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS reports_project_group_created_at_idx
 ON reports (project_id, group_id, created_at DESC);

@@ -8,16 +8,18 @@ const createProjectSchema = z.object({
     url: z.string({
         error: (issue) =>
             issue.input === undefined ? 'URL is required' : 'URL must be a string'
-    }).trim().min(1, 'URL is required').url('URL must be valid')
+    }).trim().min(1, 'URL is required').url('URL must be valid'),
+    clientId: z.string().uuid('Client ID must be a valid UUID').nullable().optional()
 });
 
 const updateProjectSchema = z.object({
     name: z.string().trim().min(1, 'Name must be a non-empty string').optional(),
-    url: z.string().trim().min(1, 'URL must be a non-empty string').url('URL must be valid').optional()
+    url: z.string().trim().min(1, 'URL must be a non-empty string').url('URL must be valid').optional(),
+    clientId: z.string().uuid('Client ID must be a valid UUID').nullable().optional()
 }).refine(
-    (data) => data.name !== undefined || data.url !== undefined,
+    (data) => data.name !== undefined || data.url !== undefined || data.clientId !== undefined,
     {
-        message: 'At least one of name or URL is required'
+        message: 'At least one of name, URL, or client ID is required'
     }
 );
 

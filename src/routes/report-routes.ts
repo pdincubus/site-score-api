@@ -7,10 +7,12 @@ import {
 } from '../controllers/report-group-controller.js';
 import { importReportInsightsPreview } from '../controllers/report-insight-import-controller.js';
 import {
+    archiveReport,
     createReport,
     deleteReport,
     getProjectReports,
     getReportById,
+    restoreReport,
     updateReport
 } from '../controllers/report-controller.js';
 import { asyncHandler } from '../middleware/async-handler.js';
@@ -187,6 +189,16 @@ reportRoutes.get(
  *         required: false
  *         schema:
  *           type: string
+ *       - in: query
+ *         name: status
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - active
+ *             - archived
+ *             - all
+ *           example: active
  *       - in: query
  *         name: sort
  *         required: false
@@ -459,6 +471,68 @@ reportRoutes.get('/reports/:id', asyncHandler(requireAuth), asyncHandler(getRepo
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 reportRoutes.patch('/reports/:id', asyncHandler(requireAuth), asyncHandler(updateReport));
+
+/**
+ * @openapi
+ * /reports/{id}/archive:
+ *   post:
+ *     summary: Archive a report
+ *     tags:
+ *       - Reports
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Report archived
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Report'
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Report not found
+ */
+reportRoutes.post('/reports/:id/archive', asyncHandler(requireAuth), asyncHandler(archiveReport));
+
+/**
+ * @openapi
+ * /reports/{id}/restore:
+ *   post:
+ *     summary: Restore an archived report
+ *     tags:
+ *       - Reports
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Report restored
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Report'
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Report not found
+ */
+reportRoutes.post('/reports/:id/restore', asyncHandler(requireAuth), asyncHandler(restoreReport));
 
 /**
  * @openapi

@@ -196,6 +196,7 @@ async function getReportGroupTrendsByProjectId(
             FROM report_groups g
             LEFT JOIN reports r ON r.group_id = g.id
                 AND r.project_id = g.project_id
+                AND r.archived_at IS NULL
             WHERE g.project_id = $1
               ${groupFilter}
             ORDER BY g.name ASC,

@@ -18,6 +18,12 @@ type CreateProjectInput = {
     cookie: AuthCookie;
     name: string;
     url: string;
+    clientId?: string | null;
+};
+
+type CreateClientInput = {
+    cookie: AuthCookie;
+    name: string;
 };
 
 type CreateReportInput = {
@@ -95,7 +101,17 @@ async function createProject(input: CreateProjectInput) {
         .set('Cookie', input.cookie)
         .send({
             name: input.name,
-            url: input.url
+            url: input.url,
+            ...(input.clientId !== undefined ? { clientId: input.clientId } : {})
+        });
+}
+
+async function createClient(input: CreateClientInput) {
+    return request(app)
+        .post('/clients')
+        .set('Cookie', input.cookie)
+        .send({
+            name: input.name
         });
 }
 
@@ -132,6 +148,7 @@ export {
     registerUser,
     loginUser,
     registerAndLoginAs,
+    createClient,
     createProject,
     createReportGroup,
     createReport

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../app.js';
 import { clearTables } from '../test/test-db.js';
 import {
+    createClient,
     createProject,
     createReport,
     createReportGroup,
@@ -206,6 +207,106 @@ describe('Project routes', () => {
         expect(response.status).toBe(200);
         expect(response.body.name).toBe('New name');
         expect(response.body.url).toBe('https://old-name.com');
+    });
+
+    it('assigns a project to an owned client', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil-client-project@example.com'
+        });
+        const clientResponse = await createClient({
+            cookie,
+            name: 'Client project owner'
+        });
+
+        const createResponse = await createProject({
+            cookie,
+            name: 'Client site',
+            url: 'https://client-site.com',
+            clientId: clientResponse.body.id
+        });
+
+        expect(createResponse.status).toBe(201);
+        expect(createResponse.body.clientId).toBe(clientResponse.body.id);
+
+        const updateResponse = await request(app)
+            .patch(`/projects/${createResponse.body.id}`)
+            .set('Cookie', cookie)
+            .send({
+                clientId: null
+            });
+
+        expect(updateResponse.status).toBe(200);
+        expect(updateResponse.body.clientId).toBeNull();
+    });
+
+    it('rejects assigning a project to another users client', async () => {
+        const ownerCookie = await registerAndLoginAs({
+            name: 'Owner',
+            email: 'project-client-owner@example.com'
+        });
+        const clientResponse = await createClient({
+            cookie: ownerCookie,
+            name: 'Owner client'
+        });
+
+        const otherUserCookie = await registerAndLoginAs({
+            name: 'Other',
+            email: 'project-client-other@example.com'
+        });
+
+        const createResponse = await createProject({
+            cookie: otherUserCookie,
+            name: 'Blocked client site',
+            url: 'https://blocked-client-site.com',
+            clientId: clientResponse.body.id
+        });
+
+        expect(createResponse.status).toBe(404);
+        expect(createResponse.body).toEqual({
+            error: 'Client not found'
+        });
+    });
+
+    it('archives and restores an owned project without hard deleting it', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'phil-archive-project@example.com'
+        });
+        const createResponse = await createProject({
+            cookie,
+            name: 'Archive me',
+            url: 'https://archive-project.com'
+        });
+        const projectId = createResponse.body.id;
+
+        const archiveResponse = await request(app)
+            .post(`/projects/${projectId}/archive`)
+            .set('Cookie', cookie);
+
+        expect(archiveResponse.status).toBe(200);
+        expect(archiveResponse.body.archivedAt).toEqual(expect.any(String));
+
+        const activeListResponse = await request(app)
+            .get('/projects')
+            .set('Cookie', cookie);
+        const archivedListResponse = await request(app)
+            .get('/projects?status=archived')
+            .set('Cookie', cookie);
+
+        expect(activeListResponse.body.data).toEqual([]);
+        expect(archivedListResponse.body.data).toHaveLength(1);
+        expect(archivedListResponse.body.data[0]).toMatchObject({
+            id: projectId,
+            name: 'Archive me'
+        });
+
+        const restoreResponse = await request(app)
+            .post(`/projects/${projectId}/restore`)
+            .set('Cookie', cookie);
+
+        expect(restoreResponse.status).toBe(200);
+        expect(restoreResponse.body.archivedAt).toBeNull();
     });
 
     it('rejects project deletion when not authenticated', async () => {

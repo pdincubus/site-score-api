@@ -31,6 +31,7 @@ type ReportRow = {
     best_practices_score: number;
     agentic_browsing_score: number;
     insights: unknown;
+    archived_at: Date | null;
     created_at: Date;
     previous_report_id: string | null;
     previous_created_at: Date | null;
@@ -195,6 +196,7 @@ function mapReportRow(row: ReportRow): Report {
         agenticBrowsingScore: row.agentic_browsing_score,
         insights,
         comparison: mapReportComparison(row, insights),
+        archivedAt: row.archived_at?.toISOString() ?? null,
         createdAt: row.created_at.toISOString()
     };
 }
@@ -216,6 +218,7 @@ function getReportSelectSql(source = 'r'): string {
         ${source}.best_practices_score,
         ${source}.agentic_browsing_score,
         ${source}.insights,
+        ${source}.archived_at,
         ${source}.created_at,
         previous_report.id AS previous_report_id,
         previous_report.created_at AS previous_created_at,
@@ -244,6 +247,7 @@ function getReportJoinSql(source = 'r'): string {
             FROM reports candidate_report
             WHERE candidate_report.project_id = ${source}.project_id
               AND candidate_report.group_id = ${source}.group_id
+              AND candidate_report.archived_at IS NULL
               AND (
                 candidate_report.created_at < ${source}.created_at
                 OR (
@@ -275,6 +279,14 @@ async function getPaginatedReportsByProjectId(
     if (query.groupId !== '') {
         params.push(query.groupId);
         conditions.push(`r.group_id = $${params.length}`);
+    }
+
+    if (query.status === 'active') {
+        conditions.push('r.archived_at IS NULL');
+    }
+
+    if (query.status === 'archived') {
+        conditions.push('r.archived_at IS NOT NULL');
     }
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
@@ -324,6 +336,7 @@ async function getReportsByProjectId(projectId: string): Promise<Report[]> {
             FROM reports r
             ${getReportJoinSql('r')}
             WHERE r.project_id = $1
+              AND r.archived_at IS NULL
             ORDER BY r.created_at DESC
         `,
         [projectId]
@@ -366,6 +379,7 @@ async function createNewReport(input: CreateReportInput): Promise<Report> {
                     best_practices_score,
                     agentic_browsing_score,
                     insights,
+                    archived_at,
                     created_at
             )
             SELECT ${getReportSelectSql('inserted')}
@@ -468,6 +482,7 @@ async function updateReportById(id: string, input: UpdateReportInput): Promise<R
                     best_practices_score,
                     agentic_browsing_score,
                     insights,
+                    archived_at,
                     created_at
             )
             SELECT ${getReportSelectSql('updated')}
@@ -505,7 +520,76 @@ async function deleteReportById(id: string): Promise<boolean> {
     return (result.rowCount ?? 0) > 0;
 }
 
+async function archiveReportById(id: string): Promise<Report | undefined> {
+    const result = await pool.query<ReportRow>(
+        `
+            WITH updated AS (
+                UPDATE reports
+                SET archived_at = COALESCE(archived_at, NOW())
+                WHERE id = $1
+                RETURNING
+                    id,
+                    project_id,
+                    group_id,
+                    title,
+                    summary,
+                    page_url,
+                    accessibility_score,
+                    performance_score,
+                    seo_score,
+                    best_practices_score,
+                    agentic_browsing_score,
+                    insights,
+                    archived_at,
+                    created_at
+            )
+            SELECT ${getReportSelectSql('updated')}
+            FROM updated
+            ${getReportJoinSql('updated')}
+        `,
+        [id]
+    );
+    const row = result.rows[0];
+
+    return row ? mapReportRow(row) : undefined;
+}
+
+async function restoreReportById(id: string): Promise<Report | undefined> {
+    const result = await pool.query<ReportRow>(
+        `
+            WITH updated AS (
+                UPDATE reports
+                SET archived_at = NULL
+                WHERE id = $1
+                RETURNING
+                    id,
+                    project_id,
+                    group_id,
+                    title,
+                    summary,
+                    page_url,
+                    accessibility_score,
+                    performance_score,
+                    seo_score,
+                    best_practices_score,
+                    agentic_browsing_score,
+                    insights,
+                    archived_at,
+                    created_at
+            )
+            SELECT ${getReportSelectSql('updated')}
+            FROM updated
+            ${getReportJoinSql('updated')}
+        `,
+        [id]
+    );
+    const row = result.rows[0];
+
+    return row ? mapReportRow(row) : undefined;
+}
+
 export {
+    archiveReportById,
     createNewReport,
     deleteReportById,
     getPaginatedReportsByProjectId,
@@ -514,5 +598,6 @@ export {
     getReportProjectOwnerId,
     getReportsByProjectId,
     mapReportRow,
+    restoreReportById,
     updateReportById
 };

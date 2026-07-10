@@ -9,6 +9,7 @@ import { errorMiddleware, notFoundMiddleware } from './middleware/error-middlewa
 import { createRateLimit } from './middleware/rate-limit.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { securityHeaders } from './middleware/security-headers.js';
+import { clientRoutes } from './routes/client-routes.js';
 import { projectRoutes } from './routes/project-routes.js';
 import { authRoutes } from './routes/auth-routes.js';
 import { reportRoutes } from './routes/report-routes.js';
@@ -55,12 +56,14 @@ app.get('/', (_req, res) => {
         docs: '/docs',
         endpoints: {
             auth: '/auth',
+            clients: '/clients',
             projects: '/projects',
             reports: '/reports/:id'
         }
     });
 });
 
+app.use('/clients', clientRoutes);
 app.use('/projects', projectRoutes);
 app.use('/auth/login', authRateLimit);
 app.use('/auth/register', authRateLimit);

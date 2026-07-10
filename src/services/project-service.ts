@@ -9,12 +9,15 @@ type CreateProjectInput = {
     name: string;
     url: string;
     userId: string;
+    clientId?: string | null;
 };
 
 type ProjectRow = {
     id: string;
     name: string;
     url: string;
+    client_id: string | null;
+    archived_at: Date | null;
     created_at: Date;
     user_id: string;
 };
@@ -34,6 +37,7 @@ type ProjectListRow = ProjectRow & {
 type UpdateProjectInput = {
     name?: string;
     url?: string;
+    clientId?: string | null;
 };
 
 function mapProjectRow(row: ProjectRow): Project {
@@ -41,6 +45,8 @@ function mapProjectRow(row: ProjectRow): Project {
         id: row.id,
         name: row.name,
         url: row.url,
+        clientId: row.client_id,
+        archivedAt: row.archived_at?.toISOString() ?? null,
         createdAt: row.created_at.toISOString()
     };
 }
@@ -84,6 +90,14 @@ async function getPaginatedProjects(
     const conditions = ['p.user_id = $1'];
     const params: unknown[] = [userId];
 
+    if (query.status === 'active') {
+        conditions.push('p.archived_at IS NULL');
+    }
+
+    if (query.status === 'archived') {
+        conditions.push('p.archived_at IS NOT NULL');
+    }
+
     if (searchTerm !== '') {
         params.push(`%${searchTerm}%`);
         conditions.push(`(p.name ILIKE $${params.length} OR p.url ILIKE $${params.length})`);
@@ -108,7 +122,7 @@ async function getPaginatedProjects(
     const result = await pool.query<ProjectListRow>(
         `
             WITH page_projects AS (
-                SELECT p.id, p.name, p.url, p.created_at, p.user_id
+                SELECT p.id, p.name, p.url, p.client_id, p.archived_at, p.created_at, p.user_id
                 FROM projects p
                 ${whereClause}
                 ORDER BY ${sortColumn} ${sortOrder}
@@ -119,6 +133,8 @@ async function getPaginatedProjects(
                 p.id,
                 p.name,
                 p.url,
+                p.client_id,
+                p.archived_at,
                 p.created_at,
                 p.user_id,
                 COALESCE(report_counts.report_count, 0)::int AS report_count,
@@ -135,6 +151,7 @@ async function getPaginatedProjects(
                 SELECT COUNT(*)::int AS report_count
                 FROM reports r
                 WHERE r.project_id = p.id
+                  AND r.archived_at IS NULL
             ) report_counts ON TRUE
             LEFT JOIN LATERAL (
                 SELECT COUNT(*)::int AS report_group_count
@@ -152,6 +169,7 @@ async function getPaginatedProjects(
                     r.agentic_browsing_score
                 FROM reports r
                 WHERE r.project_id = p.id
+                  AND r.archived_at IS NULL
                 ORDER BY r.created_at DESC, r.id DESC
                 LIMIT 1
             ) latest_report ON TRUE
@@ -174,7 +192,7 @@ async function getPaginatedProjects(
 async function getAllProjects(): Promise<Project[]> {
     const result = await pool.query<ProjectRow>(
         `
-            SELECT id, name, url, created_at, user_id
+            SELECT id, name, url, client_id, archived_at, created_at, user_id
             FROM projects
             ORDER BY created_at DESC
         `
@@ -186,7 +204,7 @@ async function getAllProjects(): Promise<Project[]> {
 async function getProjectById(id: string): Promise<Project | undefined> {
     const result = await pool.query<ProjectRow>(
         `
-            SELECT id, name, url, created_at, user_id
+            SELECT id, name, url, client_id, archived_at, created_at, user_id
             FROM projects
             WHERE id = $1
             LIMIT 1
@@ -225,11 +243,11 @@ async function createNewProject(input: CreateProjectInput): Promise<Project> {
 
     const result = await pool.query<ProjectRow>(
         `
-            INSERT INTO projects (id, name, url, user_id)
-            VALUES ($1, $2, $3, $4)
-            RETURNING id, name, url, created_at, user_id
+            INSERT INTO projects (id, name, url, user_id, client_id)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id, name, url, client_id, archived_at, created_at, user_id
         `,
-        [id, trimmedName, trimmedUrl, input.userId]
+        [id, trimmedName, trimmedUrl, input.userId, input.clientId ?? null]
     );
 
     return mapProjectRow(result.rows[0]);
@@ -250,7 +268,7 @@ async function deleteProjectById(id: string): Promise<boolean> {
 async function updateProjectById(id: string, input: UpdateProjectInput): Promise<Project | undefined> {
     const existingResult = await pool.query<ProjectRow>(
         `
-            SELECT id, name, url, created_at, user_id
+            SELECT id, name, url, client_id, archived_at, created_at, user_id
             FROM projects
             WHERE id = $1
             LIMIT 1
@@ -266,6 +284,7 @@ async function updateProjectById(id: string, input: UpdateProjectInput): Promise
 
     const nextName = input.name !== undefined ? input.name.trim() : existingRow.name;
     const nextUrl = input.url !== undefined ? input.url.trim() : existingRow.url;
+    const nextClientId = input.clientId !== undefined ? input.clientId : existingRow.client_id;
 
     if (input.url !== undefined) {
         const duplicateResult = await pool.query<{ id: string }>(
@@ -288,11 +307,12 @@ async function updateProjectById(id: string, input: UpdateProjectInput): Promise
         `
             UPDATE projects
             SET name = $1,
-                url = $2
-            WHERE id = $3
-            RETURNING id, name, url, created_at, user_id
+                url = $2,
+                client_id = $3
+            WHERE id = $4
+            RETURNING id, name, url, client_id, archived_at, created_at, user_id
         `,
-        [nextName, nextUrl, id]
+        [nextName, nextUrl, nextClientId, id]
     );
 
     return mapProjectRow(result.rows[0]);
@@ -312,4 +332,44 @@ async function getProjectOwnerId(id: string): Promise<string | undefined> {
     return result.rows[0]?.user_id;
 }
 
-export { getAllProjects, getProjectById, createNewProject, deleteProjectById, updateProjectById, getProjectOwnerId, getPaginatedProjects };
+async function archiveProjectById(id: string): Promise<Project | undefined> {
+    const result = await pool.query<ProjectRow>(
+        `
+            UPDATE projects
+            SET archived_at = COALESCE(archived_at, NOW())
+            WHERE id = $1
+            RETURNING id, name, url, client_id, archived_at, created_at, user_id
+        `,
+        [id]
+    );
+    const row = result.rows[0];
+
+    return row ? mapProjectRow(row) : undefined;
+}
+
+async function restoreProjectById(id: string): Promise<Project | undefined> {
+    const result = await pool.query<ProjectRow>(
+        `
+            UPDATE projects
+            SET archived_at = NULL
+            WHERE id = $1
+            RETURNING id, name, url, client_id, archived_at, created_at, user_id
+        `,
+        [id]
+    );
+    const row = result.rows[0];
+
+    return row ? mapProjectRow(row) : undefined;
+}
+
+export {
+    archiveProjectById,
+    createNewProject,
+    deleteProjectById,
+    getAllProjects,
+    getPaginatedProjects,
+    getProjectById,
+    getProjectOwnerId,
+    restoreProjectById,
+    updateProjectById
+};

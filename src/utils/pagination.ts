@@ -4,8 +4,18 @@ type PaginationQuery = {
     offset: number;
 };
 
+type ArchiveStatus = 'active' | 'archived' | 'all';
+
 type ProjectListQuery = PaginationQuery & {
     search: string;
+    status: ArchiveStatus;
+    sort: 'createdAt' | 'name';
+    order: 'asc' | 'desc';
+};
+
+type ClientListQuery = PaginationQuery & {
+    search: string;
+    status: ArchiveStatus;
     sort: 'createdAt' | 'name';
     order: 'asc' | 'desc';
 };
@@ -13,6 +23,7 @@ type ProjectListQuery = PaginationQuery & {
 type ReportListQuery = PaginationQuery & {
     search: string;
     groupId: string;
+    status: ArchiveStatus;
     sort: 'createdAt' | 'title';
     order: 'asc' | 'desc';
 };
@@ -66,9 +77,41 @@ function getProjectListQuery(query: Record<string, unknown>): ProjectListQuery {
             ? query.order
             : 'desc';
 
+    const status = getArchiveStatus(query.status);
+
     return {
         ...pagination,
         search,
+        status,
+        sort,
+        order
+    };
+}
+
+function getClientListQuery(query: Record<string, unknown>): ClientListQuery {
+    const pagination = getPaginationQuery(query);
+
+    const search =
+        typeof query.search === 'string'
+            ? query.search.trim()
+            : '';
+
+    const sort =
+        query.sort === 'name' || query.sort === 'createdAt'
+            ? query.sort
+            : 'createdAt';
+
+    const order =
+        query.order === 'asc' || query.order === 'desc'
+            ? query.order
+            : 'desc';
+
+    const status = getArchiveStatus(query.status);
+
+    return {
+        ...pagination,
+        search,
+        status,
         sort,
         order
     };
@@ -97,14 +140,21 @@ function getReportListQuery(query: Record<string, unknown>): ReportListQuery {
             ? query.groupId.trim()
             : '';
 
+    const status = getArchiveStatus(query.status);
+
     return {
         ...pagination,
         search,
         groupId,
+        status,
         sort,
         order
     };
 }
 
-export { getPaginationQuery, getProjectListQuery, getReportListQuery };
-export type { PaginationQuery, ProjectListQuery, ReportListQuery };
+function getArchiveStatus(value: unknown): ArchiveStatus {
+    return value === 'archived' || value === 'all' ? value : 'active';
+}
+
+export { getClientListQuery, getPaginationQuery, getProjectListQuery, getReportListQuery };
+export type { ArchiveStatus, ClientListQuery, PaginationQuery, ProjectListQuery, ReportListQuery };

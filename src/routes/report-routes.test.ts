@@ -1082,4 +1082,54 @@ describe('Report routes', () => {
 
         expect(getResponse.status).toBe(404);
     });
+
+    it('archives and restores a report without hard deleting it', async () => {
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
+        const createReportResponse = await createReport({
+            cookie,
+            projectId,
+            groupId: group.id,
+            title: 'Archive report',
+            summary: 'Archive summary',
+            pageUrl: 'https://report-project.com/',
+            accessibilityScore: 70,
+            performanceScore: 71,
+            seoScore: 72,
+            bestPracticesScore: 73,
+            agenticBrowsingScore: 74
+        });
+        const reportId = createReportResponse.body.id;
+
+        const archiveResponse = await request(app)
+            .post(`/reports/${reportId}/archive`)
+            .set('Cookie', cookie);
+
+        expect(archiveResponse.status).toBe(200);
+        expect(archiveResponse.body.archivedAt).toEqual(expect.any(String));
+
+        const activeListResponse = await request(app)
+            .get(`/projects/${projectId}/reports`)
+            .set('Cookie', cookie);
+        const archivedListResponse = await request(app)
+            .get(`/projects/${projectId}/reports?status=archived`)
+            .set('Cookie', cookie);
+        const detailResponse = await request(app)
+            .get(`/reports/${reportId}`)
+            .set('Cookie', cookie);
+
+        expect(activeListResponse.status).toBe(200);
+        expect(activeListResponse.body.data).toEqual([]);
+        expect(archivedListResponse.status).toBe(200);
+        expect(archivedListResponse.body.data).toHaveLength(1);
+        expect(archivedListResponse.body.data[0].id).toBe(reportId);
+        expect(detailResponse.status).toBe(200);
+        expect(detailResponse.body.archivedAt).toEqual(expect.any(String));
+
+        const restoreResponse = await request(app)
+            .post(`/reports/${reportId}/restore`)
+            .set('Cookie', cookie);
+
+        expect(restoreResponse.status).toBe(200);
+        expect(restoreResponse.body.archivedAt).toBeNull();
+    });
 });

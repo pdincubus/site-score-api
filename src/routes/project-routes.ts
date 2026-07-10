@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import {
+    archiveProject,
     createProject,
     deleteProject,
     getProjectById,
     getProjects,
+    restoreProject,
     updateProject
 } from '../controllers/project-controller.js';
 import { asyncHandler } from '../middleware/async-handler.js';
@@ -39,6 +41,16 @@ const projectRoutes = Router();
  *         schema:
  *           type: string
  *           example: site
+ *       - in: query
+ *         name: status
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum:
+ *             - active
+ *             - archived
+ *             - all
+ *           example: active
  *       - in: query
  *         name: sort
  *         required: false
@@ -247,6 +259,68 @@ projectRoutes.post('/', asyncHandler(requireAuth), asyncHandler(createProject));
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 projectRoutes.patch('/:id', asyncHandler(requireAuth), asyncHandler(updateProject));
+
+/**
+ * @openapi
+ * /projects/{id}/archive:
+ *   post:
+ *     summary: Archive a project
+ *     tags:
+ *       - Projects
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Project archived
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Project'
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Project not found
+ */
+projectRoutes.post('/:id/archive', asyncHandler(requireAuth), asyncHandler(archiveProject));
+
+/**
+ * @openapi
+ * /projects/{id}/restore:
+ *   post:
+ *     summary: Restore an archived project
+ *     tags:
+ *       - Projects
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Project restored
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Project'
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Project not found
+ */
+projectRoutes.post('/:id/restore', asyncHandler(requireAuth), asyncHandler(restoreProject));
 
 /**
  * @openapi

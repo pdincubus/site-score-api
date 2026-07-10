@@ -3,12 +3,15 @@ import { ZodError } from 'zod';
 import { AppError } from '../errors/app-error.js';
 import { getProjectListQuery } from '../utils/pagination.js';
 
+import { getClientOwnerId } from '../services/client-service.js';
 import {
+    archiveProjectById,
     createNewProject,
     deleteProjectById,
     getPaginatedProjects,
     getProjectById as getProjectByIdFromService,
     getProjectOwnerId,
+    restoreProjectById,
     updateProjectById
 } from '../services/project-service.js';
 
@@ -16,6 +19,18 @@ import { createProjectSchema, updateProjectSchema } from '../validation/project-
 
 function getSingleParam(value: string | string[]): string {
     return Array.isArray(value) ? value[0] : value;
+}
+
+async function assertClientBelongsToCurrentUser(clientId: string | null | undefined, userId: string) {
+    if (!clientId) {
+        return;
+    }
+
+    const ownerId = await getClientOwnerId(clientId);
+
+    if (!ownerId || ownerId !== userId) {
+        throw new AppError('Client not found', 404);
+    }
 }
 
 async function getProjects(req: Request, res: Response) {
@@ -57,12 +72,15 @@ async function createProject(req: Request, res: Response) {
     }
 
     try {
-        const { name, url } = createProjectSchema.parse(req.body);
+        const { name, url, clientId } = createProjectSchema.parse(req.body);
+
+        await assertClientBelongsToCurrentUser(clientId, req.currentUser.id);
 
         const newProject = await createNewProject({
             name,
             url,
-            userId: req.currentUser.id
+            userId: req.currentUser.id,
+            clientId
         });
 
         res.status(201).json(newProject);
@@ -83,7 +101,7 @@ async function updateProject(req: Request, res: Response) {
     }
 
     try {
-        const { name, url } = updateProjectSchema.parse(req.body);
+        const { name, url, clientId } = updateProjectSchema.parse(req.body);
 
         const ownerId = await getProjectOwnerId(id);
 
@@ -95,9 +113,12 @@ async function updateProject(req: Request, res: Response) {
             throw new AppError('Forbidden', 403);
         }
 
+        await assertClientBelongsToCurrentUser(clientId, req.currentUser.id);
+
         const updatedProject = await updateProjectById(id, {
             name,
-            url
+            url,
+            clientId
         });
 
         if (!updatedProject) {
@@ -140,4 +161,64 @@ async function deleteProject(req: Request, res: Response) {
     res.status(204).send();
 }
 
-export { getProjects, getProjectById, createProject, updateProject, deleteProject };
+async function archiveProject(req: Request, res: Response) {
+    const id = getSingleParam(req.params.id);
+
+    if (!req.currentUser) {
+        throw new AppError('Not authenticated', 401);
+    }
+
+    const ownerId = await getProjectOwnerId(id);
+
+    if (!ownerId) {
+        throw new AppError('Project not found', 404);
+    }
+
+    if (ownerId !== req.currentUser.id) {
+        throw new AppError('Forbidden', 403);
+    }
+
+    const project = await archiveProjectById(id);
+
+    if (!project) {
+        throw new AppError('Project not found', 404);
+    }
+
+    res.status(200).json(project);
+}
+
+async function restoreProject(req: Request, res: Response) {
+    const id = getSingleParam(req.params.id);
+
+    if (!req.currentUser) {
+        throw new AppError('Not authenticated', 401);
+    }
+
+    const ownerId = await getProjectOwnerId(id);
+
+    if (!ownerId) {
+        throw new AppError('Project not found', 404);
+    }
+
+    if (ownerId !== req.currentUser.id) {
+        throw new AppError('Forbidden', 403);
+    }
+
+    const project = await restoreProjectById(id);
+
+    if (!project) {
+        throw new AppError('Project not found', 404);
+    }
+
+    res.status(200).json(project);
+}
+
+export {
+    archiveProject,
+    createProject,
+    deleteProject,
+    getProjectById,
+    getProjects,
+    restoreProject,
+    updateProject
+};

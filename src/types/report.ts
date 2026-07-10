@@ -42,6 +42,7 @@ type Report = {
     agenticBrowsingScore: number;
     insights: ReportInsights | null;
     comparison: ReportComparison | null;
+    archivedAt: string | null;
     createdAt: string;
 };
 

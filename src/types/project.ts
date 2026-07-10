@@ -2,6 +2,8 @@ type Project = {
     id: string;
     name: string;
     url: string;
+    clientId: string | null;
+    archivedAt: string | null;
     createdAt: string;
 };
 

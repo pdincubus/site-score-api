@@ -24,8 +24,14 @@ It was built as a practical learning and portfolio project to strengthen back en
 - Get an owned project by id
 - Create a project when authenticated
 - Update a project when authenticated and authorised
+- Archive and restore a project when authenticated and authorised
 - Delete a project when authenticated and authorised
-- Paginated list endpoint with `page`, `limit`, `search`, `sort`, and `order`
+- Paginated list endpoint with `page`, `limit`, `search`, `sort`, `order`, and `status`
+
+### Clients
+- List authenticated user's clients
+- Create, update, archive, restore, and delete owned clients
+- Assign projects to owned clients
 
 ### Reports
 - List report groups for an owned project
@@ -34,8 +40,9 @@ It was built as a practical learning and portfolio project to strengthen back en
 - Get an owned report by id
 - Create a report for a project when authenticated and authorised
 - Update a report when authenticated and authorised
+- Archive and restore a report when authenticated and authorised
 - Delete a report when authenticated and authorised
-- Paginated list endpoint for project reports with `page`, `limit`, `search`, `sort`, `order`, and optional `groupId`
+- Paginated list endpoint for project reports with `page`, `limit`, `search`, `sort`, `order`, optional `groupId`, and `status`
 - Score and User Timing comparisons against the previous report in the same group
 - Full-history report group trend data for frontend charts
 - Preview PageSpeed metrics, page weight, opportunities, failed/warning audits, and User Timings before saving them to a report
@@ -305,6 +312,7 @@ Supported query params:
 - `page`
 - `limit`
 - `search`
+- `status`
 - `sort`
 - `order`
 
@@ -317,6 +325,8 @@ Response example:
             "id": "project-id",
             "name": "My project",
             "url": "https://example.com",
+            "clientId": null,
+            "archivedAt": null,
             "createdAt": "2026-04-01T13:15:06.935Z",
             "summary": {
                 "reportCount": 2,
@@ -353,7 +363,8 @@ Request body:
 ```json
 {
     "name": "My project",
-    "url": "https://example.com"
+    "url": "https://example.com",
+    "clientId": "client-id"
 }
 ```
 
@@ -364,15 +375,58 @@ Request body example:
 
 ```json
 {
-    "name": "Updated project name"
+    "name": "Updated project name",
+    "clientId": null
 }
 ```
+
+#### `POST /projects/:id/archive`
+Archive a project. Requires authentication and ownership.
+
+#### `POST /projects/:id/restore`
+Restore an archived project. Requires authentication and ownership.
 
 #### `DELETE /projects/:id`
 Delete a project. Requires authentication and ownership.
 
 Response:
 - `204 No Content`
+
+---
+
+### Client routes
+
+#### `GET /clients`
+Get a paginated list of the authenticated user's clients.
+
+Supported query params:
+- `page`
+- `limit`
+- `search`
+- `status`
+- `sort`
+- `order`
+
+#### `POST /clients`
+Create a client. Requires authentication.
+
+```json
+{
+    "name": "Crayons & Code"
+}
+```
+
+#### `PATCH /clients/:id`
+Update a client. Requires authentication and ownership.
+
+#### `POST /clients/:id/archive`
+Archive a client. Requires authentication and ownership.
+
+#### `POST /clients/:id/restore`
+Restore an archived client. Requires authentication and ownership.
+
+#### `DELETE /clients/:id`
+Delete a client. Requires authentication and ownership. Assigned projects are unassigned, not deleted.
 
 ---
 
@@ -449,6 +503,7 @@ Supported query params:
 - `limit`
 - `search`
 - `groupId`
+- `status`
 - `sort`
 - `order`
 
@@ -499,6 +554,7 @@ Response example:
                     }
                 ]
             },
+            "archivedAt": null,
             "createdAt": "2026-07-08T08:00:00.000Z"
         }
     ],
@@ -575,6 +631,12 @@ Delete a report. Requires authentication and ownership.
 Response:
 - `204 No Content`
 
+#### `POST /reports/:id/archive`
+Archive a report. Requires authentication and ownership.
+
+#### `POST /reports/:id/restore`
+Restore an archived report. Requires authentication and ownership.
+
 ## Validation
 
 Request body validation is handled with Zod for:
@@ -583,6 +645,8 @@ Request body validation is handled with Zod for:
 - auth login payloads
 - project create payloads
 - project update payloads
+- client create payloads
+- client update payloads
 - report create payloads
 - report update payloads
 - report group create payloads
@@ -599,13 +663,16 @@ This gives you validation at both the app layer and the database layer.
 The app uses PostgreSQL for:
 - users
 - sessions
+- clients
 - projects
 - report groups
 - reports
 
 ### Main relationships
 - a user can own many projects
+- a user can own many clients
 - a project belongs to one user
+- a project can optionally belong to one client
 - a project can have many report groups
 - a project can have many reports
 - a report belongs to one project and can be attached to one report group
@@ -635,6 +702,7 @@ Current migrations include:
 - `004_add_read_path_indexes.sql`
 - `005_add_report_insights.sql`
 - `006_add_report_groups_and_replace_ux_score.sql`
+- `007_add_clients_and_archiving.sql`
 
 ## Seed data
 
