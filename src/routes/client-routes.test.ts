@@ -110,6 +110,29 @@ describe('Client routes', () => {
         expect(archiveResponse.status).toBe(403);
     });
 
+    it('rejects invalid client create payloads with 400 responses', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Validator',
+            email: 'client-validation@example.com'
+        });
+
+        const missingNameResponse = await request(app)
+            .post('/clients')
+            .set('Cookie', cookie)
+            .send({});
+        const emptyNameResponse = await request(app)
+            .post('/clients')
+            .set('Cookie', cookie)
+            .send({
+                name: '   '
+            });
+
+        expect(missingNameResponse.status).toBe(400);
+        expect(missingNameResponse.body.error).toBe('Name is required');
+        expect(emptyNameResponse.status).toBe(400);
+        expect(emptyNameResponse.body.error).toBe('Name is required');
+    });
+
     it('rejects unauthenticated client access', async () => {
         const listResponse = await request(app).get('/clients');
         const createResponse = await request(app)
