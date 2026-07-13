@@ -22,7 +22,7 @@ app.set('trust proxy', env.isProduction ? 1 : false);
 
 const allowedOrigins = [
     'http://localhost:5173',
-    'https://site-score-ui.vercel.app'
+    'https://site-score.crayonsandco.de'
 ];
 
 const authRateLimit = createRateLimit({
