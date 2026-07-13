@@ -625,6 +625,49 @@ describe('Project routes', () => {
         expect(invalidResponse.body.error).toBe('Invalid client filter');
     });
 
+    it('includes client names in the project list', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'project-client-name@example.com'
+        });
+        const clientResponse = await createClient({
+            cookie,
+            name: 'Named client'
+        });
+
+        await createProject({
+            cookie,
+            name: 'Assigned client project',
+            url: 'https://assigned-client-project.com',
+            clientId: clientResponse.body.id
+        });
+        await createProject({
+            cookie,
+            name: 'No client project',
+            url: 'https://no-client-project.com'
+        });
+
+        const response = await request(app)
+            .get('/projects')
+            .set('Cookie', cookie);
+        const assignedProject = response.body.data.find(
+            (project: { name: string }) => project.name === 'Assigned client project'
+        );
+        const unassignedProject = response.body.data.find(
+            (project: { name: string }) => project.name === 'No client project'
+        );
+
+        expect(response.status).toBe(200);
+        expect(assignedProject).toMatchObject({
+            clientId: clientResponse.body.id,
+            clientName: 'Named client'
+        });
+        expect(unassignedProject).toMatchObject({
+            clientId: null,
+            clientName: null
+        });
+    });
+
     it('filters projects by search term', async () => {
         const cookie = await registerAndLoginAs({
             name: 'Phil',

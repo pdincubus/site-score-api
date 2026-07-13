@@ -252,11 +252,16 @@ const openApiSpec = swaggerJSDoc({
                         {
                             type: 'object',
                             properties: {
+                                clientName: {
+                                    type: 'string',
+                                    nullable: true,
+                                    example: 'Crayons & Code'
+                                },
                                 summary: {
                                     $ref: '#/components/schemas/ProjectSummary'
                                 }
                             },
-                            required: ['summary']
+                            required: ['clientName', 'summary']
                         }
                     ]
                 },

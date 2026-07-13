@@ -23,6 +23,7 @@ type ProjectRow = {
 };
 
 type ProjectListRow = ProjectRow & {
+    client_name: string | null;
     report_count: number;
     report_group_count: number;
     latest_report_created_at: Date | null;
@@ -70,6 +71,7 @@ function mapProjectListRow(row: ProjectListRow): ProjectListItem {
 
     return {
         ...project,
+        clientName: row.client_name,
         summary: {
             reportCount: Number(row.report_count),
             reportGroupCount: Number(row.report_group_count),
@@ -141,6 +143,7 @@ async function getPaginatedProjects(query: ProjectListQuery): Promise<PaginatedR
                 p.archived_at,
                 p.created_at,
                 p.user_id,
+                c.name AS client_name,
                 COALESCE(report_counts.report_count, 0)::int AS report_count,
                 COALESCE(report_group_counts.report_group_count, 0)::int AS report_group_count,
                 latest_report.created_at AS latest_report_created_at,
@@ -151,6 +154,7 @@ async function getPaginatedProjects(query: ProjectListQuery): Promise<PaginatedR
                 latest_report.best_practices_score AS latest_best_practices_score,
                 latest_report.agentic_browsing_score AS latest_agentic_browsing_score
             FROM page_projects p
+            LEFT JOIN clients c ON c.id = p.client_id
             LEFT JOIN LATERAL (
                 SELECT COUNT(*)::int AS report_count
                 FROM reports r

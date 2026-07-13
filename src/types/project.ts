@@ -24,6 +24,7 @@ type ProjectSummary = {
 };
 
 type ProjectListItem = Project & {
+    clientName: string | null;
     summary: ProjectSummary;
 };
 
