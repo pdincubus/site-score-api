@@ -3,14 +3,13 @@ import { ZodError } from 'zod';
 import { AppError } from '../errors/app-error.js';
 import { getProjectListQuery } from '../utils/pagination.js';
 
-import { getClientOwnerId } from '../services/client-service.js';
+import { getClientById } from '../services/client-service.js';
 import {
     archiveProjectById,
     createNewProject,
     deleteProjectById,
     getPaginatedProjects,
     getProjectById as getProjectByIdFromService,
-    getProjectOwnerId,
     restoreProjectById,
     updateProjectById
 } from '../services/project-service.js';
@@ -21,14 +20,16 @@ function getSingleParam(value: string | string[]): string {
     return Array.isArray(value) ? value[0] : value;
 }
 
-async function assertClientBelongsToCurrentUser(clientId: string | null | undefined, userId: string) {
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+async function assertClientExists(clientId: string | null | undefined) {
     if (!clientId) {
         return;
     }
 
-    const ownerId = await getClientOwnerId(clientId);
+    const client = await getClientById(clientId);
 
-    if (!ownerId || ownerId !== userId) {
+    if (!client) {
         throw new AppError('Client not found', 404);
     }
 }
@@ -38,8 +39,14 @@ async function getProjects(req: Request, res: Response) {
         throw new AppError('Not authenticated', 401);
     }
 
+    const rawClientId = typeof req.query.clientId === 'string' ? req.query.clientId.trim() : '';
+
+    if (rawClientId && rawClientId !== 'unassigned' && !UUID_PATTERN.test(rawClientId)) {
+        throw new AppError('Invalid client filter', 400);
+    }
+
     const query = getProjectListQuery(req.query as Record<string, unknown>);
-    const projects = await getPaginatedProjects(query, req.currentUser.id);
+    const projects = await getPaginatedProjects(query);
 
     res.status(200).json(projects);
 }
@@ -57,12 +64,6 @@ async function getProjectById(req: Request, res: Response) {
         throw new AppError('Project not found', 404);
     }
 
-    const ownerId = await getProjectOwnerId(id);
-
-    if (ownerId !== req.currentUser.id) {
-        throw new AppError('Forbidden', 403);
-    }
-
     res.status(200).json(project);
 }
 
@@ -74,7 +75,7 @@ async function createProject(req: Request, res: Response) {
     try {
         const { name, url, clientId } = createProjectSchema.parse(req.body);
 
-        await assertClientBelongsToCurrentUser(clientId, req.currentUser.id);
+        await assertClientExists(clientId);
 
         const newProject = await createNewProject({
             name,
@@ -103,17 +104,7 @@ async function updateProject(req: Request, res: Response) {
     try {
         const { name, url, clientId } = updateProjectSchema.parse(req.body);
 
-        const ownerId = await getProjectOwnerId(id);
-
-        if (!ownerId) {
-            throw new AppError('Project not found', 404);
-        }
-
-        if (ownerId !== req.currentUser.id) {
-            throw new AppError('Forbidden', 403);
-        }
-
-        await assertClientBelongsToCurrentUser(clientId, req.currentUser.id);
+        await assertClientExists(clientId);
 
         const updatedProject = await updateProjectById(id, {
             name,
@@ -142,16 +133,6 @@ async function deleteProject(req: Request, res: Response) {
         throw new AppError('Not authenticated', 401);
     }
 
-    const ownerId = await getProjectOwnerId(id);
-
-    if (!ownerId) {
-        throw new AppError('Project not found', 404);
-    }
-
-    if (ownerId !== req.currentUser.id) {
-        throw new AppError('Forbidden', 403);
-    }
-
     const wasDeleted = await deleteProjectById(id);
 
     if (!wasDeleted) {
@@ -168,16 +149,6 @@ async function archiveProject(req: Request, res: Response) {
         throw new AppError('Not authenticated', 401);
     }
 
-    const ownerId = await getProjectOwnerId(id);
-
-    if (!ownerId) {
-        throw new AppError('Project not found', 404);
-    }
-
-    if (ownerId !== req.currentUser.id) {
-        throw new AppError('Forbidden', 403);
-    }
-
     const project = await archiveProjectById(id);
 
     if (!project) {
@@ -192,16 +163,6 @@ async function restoreProject(req: Request, res: Response) {
 
     if (!req.currentUser) {
         throw new AppError('Not authenticated', 401);
-    }
-
-    const ownerId = await getProjectOwnerId(id);
-
-    if (!ownerId) {
-        throw new AppError('Project not found', 404);
-    }
-
-    if (ownerId !== req.currentUser.id) {
-        throw new AppError('Forbidden', 403);
     }
 
     const project = await restoreProjectById(id);

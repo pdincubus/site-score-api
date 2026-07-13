@@ -80,15 +80,19 @@ function mapProjectListRow(row: ProjectListRow): ProjectListItem {
     };
 }
 
-async function getPaginatedProjects(
-    query: ProjectListQuery,
-    userId: string
-): Promise<PaginatedResponse<ProjectListItem>> {
+async function getPaginatedProjects(query: ProjectListQuery): Promise<PaginatedResponse<ProjectListItem>> {
     const sortColumn = query.sort === 'name' ? 'p.name' : 'p.created_at';
     const sortOrder = query.order === 'asc' ? 'ASC' : 'DESC';
     const searchTerm = query.search.trim();
-    const conditions = ['p.user_id = $1'];
-    const params: unknown[] = [userId];
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (query.clientId === null) {
+        conditions.push('p.client_id IS NULL');
+    } else if (query.clientId !== undefined) {
+        params.push(query.clientId);
+        conditions.push(`p.client_id = $${params.length}`);
+    }
 
     if (query.status === 'active') {
         conditions.push('p.archived_at IS NULL');
@@ -103,7 +107,7 @@ async function getPaginatedProjects(
         conditions.push(`(p.name ILIKE $${params.length} OR p.url ILIKE $${params.length})`);
     }
 
-    const whereClause = `WHERE ${conditions.join(' AND ')}`;
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const totalResult = await pool.query<{ count: string }>(
         `

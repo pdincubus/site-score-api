@@ -8,6 +8,7 @@ type ArchiveStatus = 'active' | 'archived' | 'all';
 
 type ProjectListQuery = PaginationQuery & {
     search: string;
+    clientId: string | null | undefined;
     status: ArchiveStatus;
     sort: 'createdAt' | 'name';
     order: 'asc' | 'desc';
@@ -78,10 +79,13 @@ function getProjectListQuery(query: Record<string, unknown>): ProjectListQuery {
             : 'desc';
 
     const status = getArchiveStatus(query.status);
+    const rawClientId = typeof query.clientId === 'string' ? query.clientId.trim() : '';
+    const clientId = rawClientId === '' ? undefined : rawClientId === 'unassigned' ? null : rawClientId;
 
     return {
         ...pagination,
         search,
+        clientId,
         status,
         sort,
         order

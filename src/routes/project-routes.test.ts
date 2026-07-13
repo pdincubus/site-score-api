@@ -209,7 +209,7 @@ describe('Project routes', () => {
         expect(response.body.url).toBe('https://old-name.com');
     });
 
-    it('assigns a project to an owned client', async () => {
+    it('assigns a project to a workspace client', async () => {
         const cookie = await registerAndLoginAs({
             name: 'Phil',
             email: 'phil-client-project@example.com'
@@ -240,7 +240,7 @@ describe('Project routes', () => {
         expect(updateResponse.body.clientId).toBeNull();
     });
 
-    it('rejects assigning a project to another users client', async () => {
+    it('allows assigning a project to a client created by another user', async () => {
         const ownerCookie = await registerAndLoginAs({
             name: 'Owner',
             email: 'project-client-owner@example.com'
@@ -257,15 +257,13 @@ describe('Project routes', () => {
 
         const createResponse = await createProject({
             cookie: otherUserCookie,
-            name: 'Blocked client site',
-            url: 'https://blocked-client-site.com',
+            name: 'Shared client site',
+            url: 'https://shared-client-site.com',
             clientId: clientResponse.body.id
         });
 
-        expect(createResponse.status).toBe(404);
-        expect(createResponse.body).toEqual({
-            error: 'Client not found'
-        });
+        expect(createResponse.status).toBe(201);
+        expect(createResponse.body.clientId).toBe(clientResponse.body.id);
     });
 
     it('archives and restores an owned project without hard deleting it', async () => {
@@ -362,7 +360,7 @@ describe('Project routes', () => {
         });
     });
 
-    it('rejects project update by a different authenticated user', async () => {
+    it('allows project updates by a different authenticated user', async () => {
         const ownerCookie = await registerAndLoginAs({
             name: 'Owner',
             email: 'owner@example.com'
@@ -385,16 +383,14 @@ describe('Project routes', () => {
             .patch(`/projects/${projectId}`)
             .set('Cookie', otherUserCookie)
             .send({
-                name: 'Hacked name'
+                name: 'Shared project name'
             });
 
-        expect(response.status).toBe(403);
-        expect(response.body).toEqual({
-            error: 'Forbidden'
-        });
+        expect(response.status).toBe(200);
+        expect(response.body.name).toBe('Shared project name');
     });
 
-    it('rejects project deletion by a different authenticated user', async () => {
+    it('allows project deletion by a different authenticated user', async () => {
         const ownerCookie = await registerAndLoginAs({
             name: 'Owner',
             email: 'owner@example.com'
@@ -417,13 +413,10 @@ describe('Project routes', () => {
             .delete(`/projects/${projectId}`)
             .set('Cookie', otherUserCookie);
 
-        expect(response.status).toBe(403);
-        expect(response.body).toEqual({
-            error: 'Forbidden'
-        });
+        expect(response.status).toBe(204);
     });
 
-    it('does not include other users projects in the project list', async () => {
+    it('includes all workspace projects in the project list', async () => {
         const ownerCookie = await registerAndLoginAs({
             name: 'Owner',
             email: 'owner@example.com'
@@ -451,9 +444,11 @@ describe('Project routes', () => {
             .set('Cookie', ownerCookie);
 
         expect(response.status).toBe(200);
-        expect(response.body.data).toHaveLength(1);
-        expect(response.body.data[0].name).toBe('Owner project');
-        expect(response.body.pagination.total).toBe(1);
+        expect(response.body.data.map((project: { name: string }) => project.name)).toEqual([
+            'Other project',
+            'Owner project'
+        ]);
+        expect(response.body.pagination.total).toBe(2);
     });
 
     it('includes an empty summary for projects without reports', async () => {
@@ -561,7 +556,7 @@ describe('Project routes', () => {
         });
     });
 
-    it('rejects project lookup by a different authenticated user', async () => {
+    it('allows project lookup by a different authenticated user', async () => {
         const ownerCookie = await registerAndLoginAs({
             name: 'Owner',
             email: 'owner-read@example.com'
@@ -582,10 +577,52 @@ describe('Project routes', () => {
             .get(`/projects/${createResponse.body.id}`)
             .set('Cookie', otherUserCookie);
 
-        expect(response.status).toBe(403);
-        expect(response.body).toEqual({
-            error: 'Forbidden'
+        expect(response.status).toBe(200);
+        expect(response.body.id).toBe(createResponse.body.id);
+    });
+
+    it('filters projects by assigned client and unassigned status', async () => {
+        const cookie = await registerAndLoginAs({
+            name: 'Phil',
+            email: 'project-client-filter@example.com'
         });
+        const clientResponse = await createClient({
+            cookie,
+            name: 'Filtered client'
+        });
+
+        await createProject({
+            cookie,
+            name: 'Assigned project',
+            url: 'https://assigned-project.com',
+            clientId: clientResponse.body.id
+        });
+        await createProject({
+            cookie,
+            name: 'Unassigned project',
+            url: 'https://unassigned-project.com'
+        });
+
+        const assignedResponse = await request(app)
+            .get(`/projects?clientId=${clientResponse.body.id}`)
+            .set('Cookie', cookie);
+        const unassignedResponse = await request(app)
+            .get('/projects?clientId=unassigned')
+            .set('Cookie', cookie);
+        const invalidResponse = await request(app)
+            .get('/projects?clientId=not-an-id')
+            .set('Cookie', cookie);
+
+        expect(assignedResponse.status).toBe(200);
+        expect(assignedResponse.body.data.map((project: { name: string }) => project.name)).toEqual([
+            'Assigned project'
+        ]);
+        expect(unassignedResponse.status).toBe(200);
+        expect(unassignedResponse.body.data.map((project: { name: string }) => project.name)).toEqual([
+            'Unassigned project'
+        ]);
+        expect(invalidResponse.status).toBe(400);
+        expect(invalidResponse.body.error).toBe('Invalid client filter');
     });
 
     it('filters projects by search term', async () => {
