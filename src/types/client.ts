@@ -5,4 +5,13 @@ type Client = {
     createdAt: string;
 };
 
-export type { Client };
+type ClientSummary = {
+    projectCount: number;
+    reportCount: number;
+};
+
+type ClientListItem = Client & {
+    summary: ClientSummary;
+};
+
+export type { Client, ClientListItem, ClientSummary };

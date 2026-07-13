@@ -35,6 +35,38 @@ const clientRoutes = Router();
  *     responses:
  *       200:
  *         description: Paginated list of clients
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/ClientListItem'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                       example: 1
+ *                     limit:
+ *                       type: integer
+ *                       example: 10
+ *                     total:
+ *                       type: integer
+ *                       example: 42
+ *                     totalPages:
+ *                       type: integer
+ *                       example: 5
+ *                   required:
+ *                     - page
+ *                     - limit
+ *                     - total
+ *                     - totalPages
+ *               required:
+ *                 - data
+ *                 - pagination
  */
 clientRoutes.get('/', asyncHandler(requireAuth), asyncHandler(getClients));
 

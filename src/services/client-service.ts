@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { pool } from '../db/database.js';
-import type { Client } from '../types/client.js';
+import type { Client, ClientListItem } from '../types/client.js';
 import type { PaginatedResponse } from '../types/pagination.js';
 import type { ClientListQuery } from '../utils/pagination.js';
 
@@ -21,6 +21,11 @@ type ClientRow = {
     created_at: Date;
 };
 
+type ClientListRow = ClientRow & {
+    project_count: number;
+    report_count: number;
+};
+
 function mapClientRow(row: ClientRow): Client {
     return {
         id: row.id,
@@ -30,7 +35,17 @@ function mapClientRow(row: ClientRow): Client {
     };
 }
 
-async function getPaginatedClients(query: ClientListQuery): Promise<PaginatedResponse<Client>> {
+function mapClientListRow(row: ClientListRow): ClientListItem {
+    return {
+        ...mapClientRow(row),
+        summary: {
+            projectCount: Number(row.project_count),
+            reportCount: Number(row.report_count)
+        }
+    };
+}
+
+async function getPaginatedClients(query: ClientListQuery): Promise<PaginatedResponse<ClientListItem>> {
     const sortColumn = query.sort === 'name' ? 'c.name' : 'c.created_at';
     const sortOrder = query.order === 'asc' ? 'ASC' : 'DESC';
     const conditions: string[] = [];
@@ -63,20 +78,44 @@ async function getPaginatedClients(query: ClientListQuery): Promise<PaginatedRes
     const dataParams = [...params, query.limit, query.offset];
     const limitParam = params.length + 1;
     const offsetParam = params.length + 2;
-    const result = await pool.query<ClientRow>(
+    const result = await pool.query<ClientListRow>(
         `
-            SELECT id, user_id, name, archived_at, created_at
-            FROM clients c
-            ${whereClause}
+            WITH page_clients AS (
+                SELECT c.id, c.user_id, c.name, c.archived_at, c.created_at
+                FROM clients c
+                ${whereClause}
+                ORDER BY ${sortColumn} ${sortOrder}
+                LIMIT $${limitParam}
+                OFFSET $${offsetParam}
+            )
+            SELECT
+                c.id,
+                c.user_id,
+                c.name,
+                c.archived_at,
+                c.created_at,
+                COALESCE(project_counts.project_count, 0)::int AS project_count,
+                COALESCE(report_counts.report_count, 0)::int AS report_count
+            FROM page_clients c
+            LEFT JOIN LATERAL (
+                SELECT COUNT(*)::int AS project_count
+                FROM projects p
+                WHERE p.client_id = c.id
+            ) project_counts ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT COUNT(*)::int AS report_count
+                FROM reports r
+                JOIN projects p ON p.id = r.project_id
+                WHERE p.client_id = c.id
+                  AND r.archived_at IS NULL
+            ) report_counts ON TRUE
             ORDER BY ${sortColumn} ${sortOrder}
-            LIMIT $${limitParam}
-            OFFSET $${offsetParam}
         `,
         dataParams
     );
 
     return {
-        data: result.rows.map(mapClientRow),
+        data: result.rows.map(mapClientListRow),
         pagination: {
             page: query.page,
             limit: query.limit,

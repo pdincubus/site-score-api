@@ -129,6 +129,38 @@ const openApiSpec = swaggerJSDoc({
                     },
                     required: ['id', 'name', 'archivedAt', 'createdAt']
                 },
+                ClientSummary: {
+                    type: 'object',
+                    properties: {
+                        projectCount: {
+                            type: 'integer',
+                            minimum: 0,
+                            example: 3
+                        },
+                        reportCount: {
+                            type: 'integer',
+                            minimum: 0,
+                            example: 12
+                        }
+                    },
+                    required: ['projectCount', 'reportCount']
+                },
+                ClientListItem: {
+                    allOf: [
+                        {
+                            $ref: '#/components/schemas/Client'
+                        },
+                        {
+                            type: 'object',
+                            properties: {
+                                summary: {
+                                    $ref: '#/components/schemas/ClientSummary'
+                                }
+                            },
+                            required: ['summary']
+                        }
+                    ]
+                },
                 ProjectSummaryScores: {
                     type: 'object',
                     properties: {
