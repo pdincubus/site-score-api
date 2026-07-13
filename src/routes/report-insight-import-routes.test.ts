@@ -246,7 +246,15 @@ describe('Report insight import routes', () => {
         });
     });
 
-    it('rejects imports for another user project', async () => {
+    it('allows imports for a project created by another user', async () => {
+        const fetchMock = vi.fn(async () => new Response(JSON.stringify(createPageSpeedResponse()), {
+            status: 200,
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }));
+        vi.stubGlobal('fetch', fetchMock);
+
         const ownerCookie = await registerAndLoginAs({
             name: 'Owner',
             email: 'owner-import@example.com'
@@ -272,10 +280,9 @@ describe('Report insight import routes', () => {
                 strategy: 'mobile'
             });
 
-        expect(response.status).toBe(403);
-        expect(response.body).toEqual({
-            error: 'Forbidden'
-        });
+        expect(response.status).toBe(200);
+        expect(response.body.source).toBe('PAGESPEED');
+        expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it('returns 404 when the import project does not exist', async () => {

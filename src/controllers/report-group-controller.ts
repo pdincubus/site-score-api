@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { ZodError } from 'zod';
 import { AppError } from '../errors/app-error.js';
-import { getProjectOwnerId } from '../services/project-service.js';
+import { getProjectById } from '../services/project-service.js';
 import {
     createNewReportGroup,
     getReportGroupTrendsByProjectId,
@@ -14,15 +14,11 @@ function getSingleParam(value: string | string[]): string {
     return Array.isArray(value) ? value[0] : value;
 }
 
-async function ensureProjectIsAccessible(projectId: string, userId: string) {
-    const ownerId = await getProjectOwnerId(projectId);
+async function ensureProjectExists(projectId: string) {
+    const project = await getProjectById(projectId);
 
-    if (!ownerId) {
+    if (!project) {
         throw new AppError('Project not found', 404);
-    }
-
-    if (ownerId !== userId) {
-        throw new AppError('Forbidden', 403);
     }
 }
 
@@ -33,7 +29,7 @@ async function getProjectReportGroups(req: Request, res: Response) {
         throw new AppError('Not authenticated', 401);
     }
 
-    await ensureProjectIsAccessible(projectId, req.currentUser.id);
+    await ensureProjectExists(projectId);
 
     const groups = await getReportGroupsByProjectId(projectId);
 
@@ -47,7 +43,7 @@ async function getProjectReportGroupTrends(req: Request, res: Response) {
         throw new AppError('Not authenticated', 401);
     }
 
-    await ensureProjectIsAccessible(projectId, req.currentUser.id);
+    await ensureProjectExists(projectId);
 
     try {
         const groupId =
@@ -85,7 +81,7 @@ async function createReportGroup(req: Request, res: Response) {
     try {
         const input = createReportGroupSchema.parse(req.body);
 
-        await ensureProjectIsAccessible(projectId, req.currentUser.id);
+        await ensureProjectExists(projectId);
 
         const group = await createNewReportGroup({
             projectId,

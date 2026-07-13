@@ -211,7 +211,7 @@ describe('Report routes', () => {
         }
     });
 
-    it('rejects report group access for unauthenticated or different users', async () => {
+    it('requires authentication and shares report group administration', async () => {
         const { projectId } = await createOwnedProjectWithGroup();
 
         const unauthenticatedResponse = await request(app)
@@ -224,7 +224,7 @@ describe('Report routes', () => {
             email: 'other@example.com'
         });
 
-        const forbiddenResponse = await request(app)
+        const sharedResponse = await request(app)
             .post(`/projects/${projectId}/report-groups`)
             .set('Cookie', otherUserCookie)
             .send({
@@ -233,7 +233,8 @@ describe('Report routes', () => {
                 strategy: 'mobile'
             });
 
-        expect(forbiddenResponse.status).toBe(403);
+        expect(sharedResponse.status).toBe(201);
+        expect(sharedResponse.body.name).toBe('Pricing mobile');
     });
 
     it('returns an empty paginated list when a project has no reports', async () => {
@@ -627,7 +628,7 @@ describe('Report routes', () => {
         ]);
     });
 
-    it('validates report group trend filters and ownership', async () => {
+    it('validates report group trend filters and shares trend access', async () => {
         const { cookie, projectId } = await createOwnedProjectWithGroup();
 
         const invalidResponse = await request(app)
@@ -662,11 +663,12 @@ describe('Report routes', () => {
             name: 'Other user',
             email: 'trend-other@example.com'
         });
-        const forbiddenResponse = await request(app)
+        const sharedResponse = await request(app)
             .get(`/projects/${projectId}/report-group-trends`)
             .set('Cookie', otherUserCookie);
 
-        expect(forbiddenResponse.status).toBe(403);
+        expect(sharedResponse.status).toBe(200);
+        expect(sharedResponse.body).toEqual(expect.any(Array));
     });
 
     it('keeps existing search and title sorting behaviour', async () => {
@@ -1009,7 +1011,7 @@ describe('Report routes', () => {
         expect(response.status).toBe(400);
     });
 
-    it('protects report routes with authentication and ownership checks', async () => {
+    it('protects report routes with authentication and shares result administration', async () => {
         const { cookie, projectId, group } = await createOwnedProjectWithGroup();
         const createReportResponse = await createReport({
             cookie,
@@ -1039,19 +1041,21 @@ describe('Report routes', () => {
             email: 'other@example.com'
         });
 
-        const forbiddenListResponse = await request(app)
+        const sharedListResponse = await request(app)
             .get(`/projects/${projectId}/reports`)
             .set('Cookie', otherUserCookie);
-        const forbiddenReadResponse = await request(app)
+        const sharedReadResponse = await request(app)
             .get(`/reports/${createReportResponse.body.id}`)
             .set('Cookie', otherUserCookie);
-        const forbiddenDeleteResponse = await request(app)
+        const sharedDeleteResponse = await request(app)
             .delete(`/reports/${createReportResponse.body.id}`)
             .set('Cookie', otherUserCookie);
 
-        expect(forbiddenListResponse.status).toBe(403);
-        expect(forbiddenReadResponse.status).toBe(403);
-        expect(forbiddenDeleteResponse.status).toBe(403);
+        expect(sharedListResponse.status).toBe(200);
+        expect(sharedListResponse.body.data).toHaveLength(1);
+        expect(sharedReadResponse.status).toBe(200);
+        expect(sharedReadResponse.body.id).toBe(createReportResponse.body.id);
+        expect(sharedDeleteResponse.status).toBe(204);
     });
 
     it('deletes a report when owned by the authenticated user', async () => {

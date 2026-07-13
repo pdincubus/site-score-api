@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { ZodError } from 'zod';
 import { AppError } from '../errors/app-error.js';
-import { getProjectOwnerId } from '../services/project-service.js';
+import { getProjectById } from '../services/project-service.js';
 import { getReportGroupProjectId } from '../services/report-group-service.js';
 import {
     archiveReportById,
@@ -10,7 +10,6 @@ import {
     getPaginatedReportsByProjectId,
     getReportById as getReportByIdFromService,
     getReportProjectAccess,
-    getReportProjectOwnerId,
     restoreReportById,
     updateReportById
 } from '../services/report-service.js';
@@ -40,14 +39,10 @@ async function getProjectReports(req: Request, res: Response) {
         throw new AppError('Not authenticated', 401);
     }
 
-    const ownerId = await getProjectOwnerId(projectId);
+    const project = await getProjectById(projectId);
 
-    if (!ownerId) {
+    if (!project) {
         throw new AppError('Project not found', 404);
-    }
-
-    if (ownerId !== req.currentUser.id) {
-        throw new AppError('Forbidden', 403);
     }
 
     const query = getReportListQuery(req.query as Record<string, unknown>);
@@ -75,16 +70,6 @@ async function getReportById(req: Request, res: Response) {
 
     if (!req.currentUser) {
         throw new AppError('Not authenticated', 401);
-    }
-
-    const ownerId = await getReportProjectOwnerId(id);
-
-    if (!ownerId) {
-        throw new AppError('Report not found', 404);
-    }
-
-    if (ownerId !== req.currentUser.id) {
-        throw new AppError('Forbidden', 403);
     }
 
     const report = await getReportByIdFromService(id);
@@ -117,14 +102,10 @@ async function createReport(req: Request, res: Response) {
             insights
         } = createReportSchema.parse(req.body);
 
-        const ownerId = await getProjectOwnerId(projectId);
+        const project = await getProjectById(projectId);
 
-        if (!ownerId) {
+        if (!project) {
             throw new AppError('Project not found', 404);
-        }
-
-        if (ownerId !== req.currentUser.id) {
-            throw new AppError('Forbidden', 403);
         }
 
         await assertReportGroupBelongsToProject(projectId, groupId);
@@ -179,10 +160,6 @@ async function updateReport(req: Request, res: Response) {
             throw new AppError('Report not found', 404);
         }
 
-        if (reportAccess.ownerId !== req.currentUser.id) {
-            throw new AppError('Forbidden', 403);
-        }
-
         await assertReportGroupBelongsToProject(reportAccess.projectId, groupId);
 
         const updatedReport = await updateReportById(id, {
@@ -218,16 +195,6 @@ async function deleteReport(req: Request, res: Response) {
         throw new AppError('Not authenticated', 401);
     }
 
-    const ownerId = await getReportProjectOwnerId(id);
-
-    if (!ownerId) {
-        throw new AppError('Report not found', 404);
-    }
-
-    if (ownerId !== req.currentUser.id) {
-        throw new AppError('Forbidden', 403);
-    }
-
     const wasDeleted = await deleteReportById(id);
 
     if (!wasDeleted) {
@@ -244,16 +211,6 @@ async function archiveReport(req: Request, res: Response) {
         throw new AppError('Not authenticated', 401);
     }
 
-    const ownerId = await getReportProjectOwnerId(id);
-
-    if (!ownerId) {
-        throw new AppError('Report not found', 404);
-    }
-
-    if (ownerId !== req.currentUser.id) {
-        throw new AppError('Forbidden', 403);
-    }
-
     const report = await archiveReportById(id);
 
     if (!report) {
@@ -268,16 +225,6 @@ async function restoreReport(req: Request, res: Response) {
 
     if (!req.currentUser) {
         throw new AppError('Not authenticated', 401);
-    }
-
-    const ownerId = await getReportProjectOwnerId(id);
-
-    if (!ownerId) {
-        throw new AppError('Report not found', 404);
-    }
-
-    if (ownerId !== req.currentUser.id) {
-        throw new AppError('Forbidden', 403);
     }
 
     const report = await restoreReportById(id);

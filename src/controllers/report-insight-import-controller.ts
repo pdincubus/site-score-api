@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { ZodError } from 'zod';
 import { AppError } from '../errors/app-error.js';
-import { getProjectOwnerId } from '../services/project-service.js';
+import { getProjectById } from '../services/project-service.js';
 import { importReportInsights } from '../services/report-insight-import-service.js';
 import { reportInsightImportSchema } from '../validation/report-insight-import-schemas.js';
 
@@ -18,14 +18,10 @@ async function importReportInsightsPreview(req: Request, res: Response) {
 
     try {
         const input = reportInsightImportSchema.parse(req.body);
-        const ownerId = await getProjectOwnerId(projectId);
+        const project = await getProjectById(projectId);
 
-        if (!ownerId) {
+        if (!project) {
             throw new AppError('Project not found', 404);
-        }
-
-        if (ownerId !== req.currentUser.id) {
-            throw new AppError('Forbidden', 403);
         }
 
         const insights = await importReportInsights(input);
