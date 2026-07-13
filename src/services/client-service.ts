@@ -30,14 +30,11 @@ function mapClientRow(row: ClientRow): Client {
     };
 }
 
-async function getPaginatedClients(
-    query: ClientListQuery,
-    userId: string
-): Promise<PaginatedResponse<Client>> {
+async function getPaginatedClients(query: ClientListQuery): Promise<PaginatedResponse<Client>> {
     const sortColumn = query.sort === 'name' ? 'c.name' : 'c.created_at';
     const sortOrder = query.order === 'asc' ? 'ASC' : 'DESC';
-    const conditions = ['c.user_id = $1'];
-    const params: unknown[] = [userId];
+    const conditions: string[] = [];
+    const params: unknown[] = [];
     const searchTerm = query.search.trim();
 
     if (searchTerm !== '') {
@@ -53,7 +50,7 @@ async function getPaginatedClients(
         conditions.push('c.archived_at IS NOT NULL');
     }
 
-    const whereClause = `WHERE ${conditions.join(' AND ')}`;
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const totalResult = await pool.query<{ count: string }>(
         `
             SELECT COUNT(*) AS count

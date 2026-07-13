@@ -6,7 +6,6 @@ import {
     createNewClient,
     deleteClientById,
     getClientById as getClientByIdFromService,
-    getClientOwnerId,
     getPaginatedClients,
     restoreClientById,
     updateClientById
@@ -18,25 +17,13 @@ function getSingleParam(value: string | string[]): string {
     return Array.isArray(value) ? value[0] : value;
 }
 
-async function assertClientOwner(clientId: string, userId: string) {
-    const ownerId = await getClientOwnerId(clientId);
-
-    if (!ownerId) {
-        throw new AppError('Client not found', 404);
-    }
-
-    if (ownerId !== userId) {
-        throw new AppError('Forbidden', 403);
-    }
-}
-
 async function getClients(req: Request, res: Response) {
     if (!req.currentUser) {
         throw new AppError('Not authenticated', 401);
     }
 
     const query = getClientListQuery(req.query as Record<string, unknown>);
-    const clients = await getPaginatedClients(query, req.currentUser.id);
+    const clients = await getPaginatedClients(query);
 
     res.status(200).json(clients);
 }
@@ -47,8 +34,6 @@ async function getClientById(req: Request, res: Response) {
     if (!req.currentUser) {
         throw new AppError('Not authenticated', 401);
     }
-
-    await assertClientOwner(id, req.currentUser.id);
 
     const client = await getClientByIdFromService(id);
 
@@ -91,8 +76,6 @@ async function updateClient(req: Request, res: Response) {
     try {
         const { name } = updateClientSchema.parse(req.body);
 
-        await assertClientOwner(id, req.currentUser.id);
-
         const client = await updateClientById(id, { name });
 
         if (!client) {
@@ -116,8 +99,6 @@ async function archiveClient(req: Request, res: Response) {
         throw new AppError('Not authenticated', 401);
     }
 
-    await assertClientOwner(id, req.currentUser.id);
-
     const client = await archiveClientById(id);
 
     if (!client) {
@@ -134,8 +115,6 @@ async function restoreClient(req: Request, res: Response) {
         throw new AppError('Not authenticated', 401);
     }
 
-    await assertClientOwner(id, req.currentUser.id);
-
     const client = await restoreClientById(id);
 
     if (!client) {
@@ -151,8 +130,6 @@ async function deleteClient(req: Request, res: Response) {
     if (!req.currentUser) {
         throw new AppError('Not authenticated', 401);
     }
-
-    await assertClientOwner(id, req.currentUser.id);
 
     const wasDeleted = await deleteClientById(id);
 

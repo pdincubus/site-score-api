@@ -79,7 +79,7 @@ describe('Client routes', () => {
         expect(getResponse.status).toBe(404);
     });
 
-    it('does not expose clients between users', async () => {
+    it('shares client administration between authenticated users', async () => {
         const ownerCookie = await registerAndLoginAs({
             name: 'Owner',
             email: 'client-owner@example.com'
@@ -103,11 +103,22 @@ describe('Client routes', () => {
         const archiveResponse = await request(app)
             .post(`/clients/${createResponse.body.id}/archive`)
             .set('Cookie', otherUserCookie);
+        const restoreResponse = await request(app)
+            .post(`/clients/${createResponse.body.id}/restore`)
+            .set('Cookie', ownerCookie);
 
         expect(listResponse.status).toBe(200);
-        expect(listResponse.body.data).toEqual([]);
-        expect(readResponse.status).toBe(403);
-        expect(archiveResponse.status).toBe(403);
+        expect(listResponse.body.data).toEqual([
+            expect.objectContaining({
+                id: createResponse.body.id,
+                name: 'Owner client'
+            })
+        ]);
+        expect(readResponse.status).toBe(200);
+        expect(archiveResponse.status).toBe(200);
+        expect(archiveResponse.body.archivedAt).toEqual(expect.any(String));
+        expect(restoreResponse.status).toBe(200);
+        expect(restoreResponse.body.archivedAt).toBeNull();
     });
 
     it('rejects invalid client create payloads with 400 responses', async () => {
