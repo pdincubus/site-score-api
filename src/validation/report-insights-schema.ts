@@ -11,6 +11,18 @@ const reportInsightMetricNameSchema = z.enum([
     'interactionToNextPaint'
 ]);
 
+const reportInsightResourceTypeSchema = z.enum([
+    'total',
+    'document',
+    'stylesheet',
+    'script',
+    'image',
+    'media',
+    'font',
+    'other',
+    'third-party'
+]);
+
 const reportInsightsSourceSchema = z.enum(['PAGESPEED', 'CRUX']);
 const pageSpeedStrategySchema = z.enum(['mobile', 'desktop']);
 const finiteNumberSchema = z.number().finite();
@@ -48,6 +60,24 @@ const reportInsightMetricsSchema = z.object({
     speedIndex: reportInsightMetricSchema.optional(),
     timeToInteractive: reportInsightMetricSchema.optional(),
     interactionToNextPaint: reportInsightMetricSchema.optional()
+}).strict();
+
+const reportInsightResourceSummaryItemSchema = z.object({
+    resourceType: reportInsightResourceTypeSchema,
+    label: z.string().trim().min(1).max(80),
+    requestCount: finiteNumberSchema.int().nonnegative(),
+    transferSize: finiteNumberSchema.nonnegative()
+}).strict();
+
+const reportInsightResourceSummarySchema = z.object({
+    items: z.array(reportInsightResourceSummaryItemSchema).max(12)
+}).strict();
+
+const reportInsightDomSizeSchema = z.object({
+    totalElements: finiteNumberSchema.int().nonnegative().nullable(),
+    maxDepth: finiteNumberSchema.int().nonnegative().nullable(),
+    maxChildElements: finiteNumberSchema.int().nonnegative().nullable(),
+    displayValue: z.string().max(120).nullable()
 }).strict();
 
 const reportInsightOpportunitySchema = z.object({
@@ -101,6 +131,8 @@ const reportInsightsSchema = z.object({
         overallCategory: z.string().max(100).nullable(),
         metrics: reportInsightMetricsSchema
     }).strict().nullable().optional(),
+    resourceSummary: reportInsightResourceSummarySchema.nullable().optional(),
+    domSize: reportInsightDomSizeSchema.nullable().optional(),
     opportunities: z.array(reportInsightOpportunitySchema).max(5),
     auditRefs: z.array(reportInsightAuditRefSchema).max(20).optional(),
     userTimings: z.array(reportInsightUserTimingSchema).max(50).optional()
@@ -108,10 +140,14 @@ const reportInsightsSchema = z.object({
 
 export {
     reportInsightAuditRefSchema,
+    reportInsightDomSizeSchema,
     pageSpeedStrategySchema,
     reportInsightMetricSchema,
     reportInsightMetricsSchema,
     reportInsightOpportunitySchema,
+    reportInsightResourceSummaryItemSchema,
+    reportInsightResourceSummarySchema,
+    reportInsightResourceTypeSchema,
     reportInsightUserTimingSchema,
     reportInsightsSchema,
     reportInsightsSourceSchema

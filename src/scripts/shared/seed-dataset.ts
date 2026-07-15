@@ -164,6 +164,16 @@ function buildInsights(
     const pageWeight = isMobile
         ? isLatest ? 1837056 : 2162688
         : isLatest ? 1212416 : 1392640;
+    const documentWeight = isMobile ? 48256 : 38432;
+    const cssWeight = isMobile ? 84320 : 62312;
+    const jsWeight = isMobile
+        ? isLatest ? 612448 : 741376
+        : isLatest ? 386144 : 452608;
+    const imageWeight = Math.max(pageWeight - documentWeight - cssWeight - jsWeight - 128000, 0);
+    const fontWeight = isMobile ? 128000 : 96000;
+    const domNodes = isMobile
+        ? isLatest ? 932 : 1040
+        : isLatest ? 812 : 884;
     const finalUrl = group.pageUrl.includes('crayonsandcode.co.uk')
         ? group.pageUrl.replace('https://crayonsandcode.co.uk', 'https://www.crayonsandcode.co.uk')
         : group.pageUrl;
@@ -235,6 +245,52 @@ function buildInsights(
             }
         },
         fieldData: null,
+        resourceSummary: {
+            items: [
+                {
+                    resourceType: 'total',
+                    label: 'Total',
+                    requestCount: isMobile ? 24 : 18,
+                    transferSize: pageWeight
+                },
+                {
+                    resourceType: 'document',
+                    label: 'HTML',
+                    requestCount: 1,
+                    transferSize: documentWeight
+                },
+                {
+                    resourceType: 'stylesheet',
+                    label: 'CSS',
+                    requestCount: isMobile ? 3 : 2,
+                    transferSize: cssWeight
+                },
+                {
+                    resourceType: 'script',
+                    label: 'JavaScript',
+                    requestCount: isMobile ? 5 : 4,
+                    transferSize: jsWeight
+                },
+                {
+                    resourceType: 'image',
+                    label: 'Images',
+                    requestCount: isMobile ? 8 : 6,
+                    transferSize: imageWeight
+                },
+                {
+                    resourceType: 'font',
+                    label: 'Fonts',
+                    requestCount: 2,
+                    transferSize: fontWeight
+                }
+            ]
+        },
+        domSize: {
+            totalElements: domNodes,
+            maxDepth: isMobile ? 17 : 15,
+            maxChildElements: isMobile ? 42 : 36,
+            displayValue: `${domNodes.toLocaleString('en-GB')} elements`
+        },
         opportunities: [
             {
                 id: 'render-blocking-resources',

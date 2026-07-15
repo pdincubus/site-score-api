@@ -530,6 +530,9 @@ const openApiSpec = swaggerJSDoc({
                             minimum: 0,
                             maximum: 100,
                             example: 79
+                        },
+                        technicalMetrics: {
+                            $ref: '#/components/schemas/ReportTrendTechnicalMetrics'
                         }
                     },
                     required: [
@@ -543,6 +546,28 @@ const openApiSpec = swaggerJSDoc({
                         'bestPracticesScore',
                         'agenticBrowsingScore'
                     ]
+                },
+                ReportTrendTechnicalMetrics: {
+                    type: 'object',
+                    properties: {
+                        pageWeightBytes: {
+                            type: 'number',
+                            nullable: true,
+                            example: 1837056
+                        },
+                        domNodes: {
+                            type: 'number',
+                            nullable: true,
+                            example: 932
+                        },
+                        resources: {
+                            type: 'array',
+                            items: {
+                                $ref: '#/components/schemas/ReportInsightResourceSummaryItem'
+                            }
+                        }
+                    },
+                    required: ['pageWeightBytes', 'domNodes', 'resources']
                 },
                 ReportGroupTrend: {
                     type: 'object',
@@ -687,6 +712,83 @@ const openApiSpec = swaggerJSDoc({
                             $ref: '#/components/schemas/ReportInsightMetric'
                         }
                     }
+                },
+                ReportInsightResourceSummaryItem: {
+                    type: 'object',
+                    properties: {
+                        resourceType: {
+                            type: 'string',
+                            enum: [
+                                'total',
+                                'document',
+                                'stylesheet',
+                                'script',
+                                'image',
+                                'media',
+                                'font',
+                                'other',
+                                'third-party'
+                            ],
+                            example: 'script'
+                        },
+                        label: {
+                            type: 'string',
+                            example: 'JavaScript'
+                        },
+                        requestCount: {
+                            type: 'integer',
+                            minimum: 0,
+                            example: 5
+                        },
+                        transferSize: {
+                            type: 'number',
+                            minimum: 0,
+                            example: 612448
+                        }
+                    },
+                    required: ['resourceType', 'label', 'requestCount', 'transferSize']
+                },
+                ReportInsightResourceSummary: {
+                    type: 'object',
+                    properties: {
+                        items: {
+                            type: 'array',
+                            maxItems: 12,
+                            items: {
+                                $ref: '#/components/schemas/ReportInsightResourceSummaryItem'
+                            }
+                        }
+                    },
+                    required: ['items']
+                },
+                ReportInsightDomSize: {
+                    type: 'object',
+                    properties: {
+                        totalElements: {
+                            type: 'integer',
+                            nullable: true,
+                            minimum: 0,
+                            example: 932
+                        },
+                        maxDepth: {
+                            type: 'integer',
+                            nullable: true,
+                            minimum: 0,
+                            example: 17
+                        },
+                        maxChildElements: {
+                            type: 'integer',
+                            nullable: true,
+                            minimum: 0,
+                            example: 42
+                        },
+                        displayValue: {
+                            type: 'string',
+                            nullable: true,
+                            example: '932 elements'
+                        }
+                    },
+                    required: ['totalElements', 'maxDepth', 'maxChildElements', 'displayValue']
                 },
                 ReportInsightOpportunity: {
                     type: 'object',
@@ -880,6 +982,14 @@ const openApiSpec = swaggerJSDoc({
                                     $ref: '#/components/schemas/ReportInsightMetrics'
                                 }
                             }
+                        },
+                        resourceSummary: {
+                            nullable: true,
+                            $ref: '#/components/schemas/ReportInsightResourceSummary'
+                        },
+                        domSize: {
+                            nullable: true,
+                            $ref: '#/components/schemas/ReportInsightDomSize'
                         },
                         opportunities: {
                             type: 'array',

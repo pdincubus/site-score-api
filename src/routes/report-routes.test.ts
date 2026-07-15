@@ -45,6 +45,34 @@ const validInsights = {
         }
     },
     fieldData: null,
+    resourceSummary: {
+        items: [
+            {
+                resourceType: 'total',
+                label: 'Total',
+                requestCount: 24,
+                transferSize: 1837056
+            },
+            {
+                resourceType: 'script',
+                label: 'Script',
+                requestCount: 5,
+                transferSize: 612448
+            },
+            {
+                resourceType: 'image',
+                label: 'Image',
+                requestCount: 8,
+                transferSize: 874320
+            }
+        ]
+    },
+    domSize: {
+        totalElements: 932,
+        maxDepth: 17,
+        maxChildElements: 42,
+        displayValue: '932 elements'
+    },
     opportunities: [
         {
             id: 'render-blocking-resources',
@@ -397,6 +425,39 @@ describe('Report routes', () => {
         expect(response.status).toBe(400);
     });
 
+    it('rejects malformed report resource summary insights on create', async () => {
+        const { cookie, projectId, group } = await createOwnedProjectWithGroup();
+
+        const response = await createReport({
+            cookie,
+            projectId,
+            groupId: group.id,
+            title: 'Homepage audit',
+            summary: 'Initial report',
+            pageUrl: 'https://report-project.com/',
+            accessibilityScore: 98,
+            performanceScore: 94,
+            seoScore: 100,
+            bestPracticesScore: 92,
+            agenticBrowsingScore: 80,
+            insights: {
+                ...validInsights,
+                resourceSummary: {
+                    items: [
+                        {
+                            resourceType: 'video',
+                            label: 'Video',
+                            requestCount: 1,
+                            transferSize: 1000000
+                        }
+                    ]
+                }
+            }
+        });
+
+        expect(response.status).toBe(400);
+    });
+
     it('rejects reports created with a group from another project', async () => {
         const { cookie, projectId } = await createOwnedProjectWithGroup();
         const otherProjectResponse = await createProject({
@@ -523,7 +584,41 @@ describe('Report routes', () => {
             performanceScore: 68,
             seoScore: 100,
             bestPracticesScore: 86,
-            agenticBrowsingScore: 82
+            agenticBrowsingScore: 82,
+            insights: {
+                ...validInsights,
+                metrics: {
+                    ...validInsights.metrics,
+                    pageWeight: {
+                        value: 2162688,
+                        unit: 'bytes',
+                        displayValue: null,
+                        category: 'performance'
+                    }
+                },
+                resourceSummary: {
+                    items: [
+                        {
+                            resourceType: 'total',
+                            label: 'Total',
+                            requestCount: 26,
+                            transferSize: 2162688
+                        },
+                        {
+                            resourceType: 'script',
+                            label: 'Script',
+                            requestCount: 6,
+                            transferSize: 700000
+                        }
+                    ]
+                },
+                domSize: {
+                    totalElements: 1040,
+                    maxDepth: 18,
+                    maxChildElements: 45,
+                    displayValue: '1,040 elements'
+                }
+            }
         });
         const newerReportResponse = await createReport({
             cookie,
@@ -536,7 +631,8 @@ describe('Report routes', () => {
             performanceScore: 75,
             seoScore: 98,
             bestPracticesScore: 90,
-            agenticBrowsingScore: 79
+            agenticBrowsingScore: 79,
+            insights: validInsights
         });
 
         await setReportCreatedAt(newerReportResponse.body.id, '2026-07-08T09:30:00.000Z');
@@ -570,7 +666,25 @@ describe('Report routes', () => {
                         accessibilityScore: 97,
                         seoScore: 100,
                         bestPracticesScore: 86,
-                        agenticBrowsingScore: 82
+                        agenticBrowsingScore: 82,
+                        technicalMetrics: {
+                            pageWeightBytes: 2162688,
+                            domNodes: 1040,
+                            resources: [
+                                {
+                                    resourceType: 'total',
+                                    label: 'Total',
+                                    requestCount: 26,
+                                    transferSize: 2162688
+                                },
+                                {
+                                    resourceType: 'script',
+                                    label: 'Script',
+                                    requestCount: 6,
+                                    transferSize: 700000
+                                }
+                            ]
+                        }
                     },
                     {
                         id: newerReportResponse.body.id,
@@ -581,7 +695,31 @@ describe('Report routes', () => {
                         accessibilityScore: 97,
                         seoScore: 98,
                         bestPracticesScore: 90,
-                        agenticBrowsingScore: 79
+                        agenticBrowsingScore: 79,
+                        technicalMetrics: {
+                            pageWeightBytes: 1837056,
+                            domNodes: 932,
+                            resources: [
+                                {
+                                    resourceType: 'total',
+                                    label: 'Total',
+                                    requestCount: 24,
+                                    transferSize: 1837056
+                                },
+                                {
+                                    resourceType: 'script',
+                                    label: 'Script',
+                                    requestCount: 5,
+                                    transferSize: 612448
+                                },
+                                {
+                                    resourceType: 'image',
+                                    label: 'Image',
+                                    requestCount: 8,
+                                    transferSize: 874320
+                                }
+                            ]
+                        }
                     }
                 ]
             }

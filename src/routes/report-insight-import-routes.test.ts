@@ -43,6 +43,52 @@ function createPageSpeedResponse() {
                     numericValue: 1837056,
                     displayValue: '1,794 KiB'
                 },
+                'resource-summary': {
+                    details: {
+                        type: 'table',
+                        items: [
+                            {
+                                resourceType: 'total',
+                                label: 'Total',
+                                requestCount: 24,
+                                transferSize: 1837056
+                            },
+                            {
+                                resourceType: 'document',
+                                label: 'Document',
+                                requestCount: 1,
+                                transferSize: 48256
+                            },
+                            {
+                                resourceType: 'script',
+                                label: 'Script',
+                                requestCount: 5,
+                                transferSize: 612448
+                            }
+                        ]
+                    }
+                },
+                'dom-size': {
+                    numericValue: 932,
+                    displayValue: '932 elements',
+                    details: {
+                        type: 'table',
+                        items: [
+                            {
+                                statistic: 'Total DOM Elements',
+                                value: 932
+                            },
+                            {
+                                statistic: 'Maximum DOM Depth',
+                                value: 17
+                            },
+                            {
+                                statistic: 'Maximum Child Elements',
+                                value: 42
+                            }
+                        ]
+                    }
+                },
                 'largest-contentful-paint': {
                     numericValue: 1800,
                     displayValue: '1.8 s'
@@ -144,6 +190,34 @@ describe('Report insight import routes', () => {
             unit: 'bytes',
             displayValue: '1,794 KiB',
             category: 'performance'
+        });
+        expect(response.body.resourceSummary).toEqual({
+            items: [
+                {
+                    resourceType: 'total',
+                    label: 'Total',
+                    requestCount: 24,
+                    transferSize: 1837056
+                },
+                {
+                    resourceType: 'document',
+                    label: 'Document',
+                    requestCount: 1,
+                    transferSize: 48256
+                },
+                {
+                    resourceType: 'script',
+                    label: 'Script',
+                    requestCount: 5,
+                    transferSize: 612448
+                }
+            ]
+        });
+        expect(response.body.domSize).toEqual({
+            totalElements: 932,
+            maxDepth: 17,
+            maxChildElements: 42,
+            displayValue: '932 elements'
         });
         expect(response.body.metrics.largestContentfulPaint).toEqual({
             value: 1800,

@@ -2,7 +2,12 @@ import crypto from 'node:crypto';
 import { pool } from '../db/database.js';
 import type { PageSpeedStrategy } from '../types/report-insights.js';
 import type { ReportGroup, ReportGroupSummary } from '../types/report-group.js';
-import type { ReportGroupTrend, ReportTrendPoint } from '../types/report-trend.js';
+import type {
+    ReportGroupTrend,
+    ReportTrendPoint,
+    ReportTrendTechnicalMetrics
+} from '../types/report-trend.js';
+import { reportInsightsSchema } from '../validation/report-insights-schema.js';
 
 type ReportGroupRow = {
     id: string;
@@ -34,6 +39,7 @@ type ReportGroupTrendRow = {
     seo_score: number | null;
     best_practices_score: number | null;
     agentic_browsing_score: number | null;
+    insights: unknown;
 };
 
 function mapReportGroupRow(row: ReportGroupRow): ReportGroup {
@@ -120,6 +126,30 @@ async function getReportGroupProjectId(id: string): Promise<string | undefined> 
     return result.rows[0]?.project_id;
 }
 
+function getReportTrendTechnicalMetrics(value: unknown): ReportTrendTechnicalMetrics | undefined {
+    const result = reportInsightsSchema.safeParse(value);
+
+    if (!result.success) {
+        return undefined;
+    }
+
+    const insights = result.data;
+    const pageWeight = insights.metrics.pageWeight;
+    const pageWeightBytes = pageWeight?.unit === 'bytes' ? pageWeight.value : null;
+    const domNodes = insights.domSize?.totalElements ?? null;
+    const resources = insights.resourceSummary?.items ?? [];
+
+    if (pageWeightBytes === null && domNodes === null && resources.length === 0) {
+        return undefined;
+    }
+
+    return {
+        pageWeightBytes,
+        domNodes,
+        resources
+    };
+}
+
 function mapTrendPoint(row: ReportGroupTrendRow): ReportTrendPoint | null {
     if (
         !row.report_id ||
@@ -135,6 +165,8 @@ function mapTrendPoint(row: ReportGroupTrendRow): ReportTrendPoint | null {
         return null;
     }
 
+    const technicalMetrics = getReportTrendTechnicalMetrics(row.insights);
+
     return {
         id: row.report_id,
         title: row.report_title,
@@ -144,7 +176,8 @@ function mapTrendPoint(row: ReportGroupTrendRow): ReportTrendPoint | null {
         accessibilityScore: row.accessibility_score,
         seoScore: row.seo_score,
         bestPracticesScore: row.best_practices_score,
-        agenticBrowsingScore: row.agentic_browsing_score
+        agenticBrowsingScore: row.agentic_browsing_score,
+        ...(technicalMetrics ? { technicalMetrics } : {})
     };
 }
 
@@ -192,7 +225,8 @@ async function getReportGroupTrendsByProjectId(
                 r.accessibility_score,
                 r.seo_score,
                 r.best_practices_score,
-                r.agentic_browsing_score
+                r.agentic_browsing_score,
+                r.insights
             FROM report_groups g
             LEFT JOIN reports r ON r.group_id = g.id
                 AND r.project_id = g.project_id

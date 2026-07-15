@@ -2,9 +2,13 @@ import { AppError } from '../errors/app-error.js';
 import type {
     ReportInsightAuditRef,
     PageSpeedStrategy,
+    ReportInsightDomSize,
     ReportInsightMetric,
     ReportInsightMetricName,
     ReportInsightOpportunity,
+    ReportInsightResourceSummary,
+    ReportInsightResourceSummaryItem,
+    ReportInsightResourceType,
     ReportInsightUserTiming,
     ReportInsights
 } from '../types/report-insights.js';
@@ -73,6 +77,18 @@ const metricDefinitions: MetricDefinition[] = [
     }
 ];
 
+const resourceTypes: ReportInsightResourceType[] = [
+    'total',
+    'document',
+    'stylesheet',
+    'script',
+    'image',
+    'media',
+    'font',
+    'other',
+    'third-party'
+];
+
 const excludedAuditScoreDisplayModes = new Set([
     'manual',
     'informative',
@@ -116,6 +132,12 @@ function getNonNegativeNumber(value: unknown): number | null {
     const numberValue = getFiniteNumber(value);
 
     return numberValue !== null && numberValue >= 0 ? numberValue : null;
+}
+
+function getNonNegativeInteger(value: unknown): number | null {
+    const numberValue = getNonNegativeNumber(value);
+
+    return numberValue !== null ? Math.round(numberValue) : null;
 }
 
 function stripHtml(value: string): string {
@@ -169,6 +191,110 @@ function normaliseMetric(
         unit: definition.unit,
         displayValue: getString(audit.displayValue),
         category: definition.category
+    };
+}
+
+function formatResourceTypeLabel(resourceType: ReportInsightResourceType): string {
+    if (resourceType === 'third-party') {
+        return 'Third-party';
+    }
+
+    return resourceType
+        .split('-')
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+}
+
+function normaliseResourceType(value: unknown): ReportInsightResourceType | null {
+    const resourceType = getString(value)?.toLowerCase();
+
+    if (!resourceType) {
+        return null;
+    }
+
+    return resourceTypes.includes(resourceType as ReportInsightResourceType)
+        ? (resourceType as ReportInsightResourceType)
+        : null;
+}
+
+function normaliseResourceSummary(audits: Record<string, unknown>): ReportInsightResourceSummary | null {
+    const audit = getRecord(audits, 'resource-summary');
+    const details = getRecord(audit, 'details');
+    const items = getArray(details, 'items')
+        .map((itemValue): ReportInsightResourceSummaryItem | null => {
+            const item = isRecord(itemValue) ? itemValue : undefined;
+            const resourceType = normaliseResourceType(item?.resourceType);
+            const requestCount = getNonNegativeInteger(item?.requestCount);
+            const transferSize = getNonNegativeNumber(item?.transferSize);
+
+            if (!item || !resourceType || requestCount === null || transferSize === null) {
+                return null;
+            }
+
+            return {
+                resourceType,
+                label: getString(item.label) || formatResourceTypeLabel(resourceType),
+                requestCount,
+                transferSize
+            };
+        })
+        .filter((item): item is ReportInsightResourceSummaryItem => item !== null)
+        .slice(0, 12);
+
+    return items.length > 0 ? { items } : null;
+}
+
+function getDomStatisticValue(
+    items: unknown[],
+    patterns: string[]
+): number | null {
+    for (const itemValue of items) {
+        const item = isRecord(itemValue) ? itemValue : undefined;
+        const statistic = getString(item?.statistic)?.toLowerCase();
+        const value = getNonNegativeInteger(item?.value);
+
+        if (
+            statistic &&
+            value !== null &&
+            patterns.some((pattern) => statistic.includes(pattern))
+        ) {
+            return value;
+        }
+    }
+
+    return null;
+}
+
+function normaliseDomSize(audits: Record<string, unknown>): ReportInsightDomSize | null {
+    const audit = getRecord(audits, 'dom-size');
+
+    if (!audit) {
+        return null;
+    }
+
+    const details = getRecord(audit, 'details');
+    const items = getArray(details, 'items');
+    const totalElements =
+        getDomStatisticValue(items, ['total dom elements', 'total elements']) ??
+        getNonNegativeInteger(audit.numericValue);
+    const maxDepth = getDomStatisticValue(items, ['maximum dom depth', 'max dom depth', 'maximum depth']);
+    const maxChildElements = getDomStatisticValue(items, ['maximum child elements', 'max child elements']);
+    const displayValue = getString(audit.displayValue);
+
+    if (
+        totalElements === null &&
+        maxDepth === null &&
+        maxChildElements === null &&
+        displayValue === null
+    ) {
+        return null;
+    }
+
+    return {
+        totalElements,
+        maxDepth,
+        maxChildElements,
+        displayValue
     };
 }
 
@@ -378,6 +504,8 @@ function normalisePageSpeedResponse(
         },
         metrics,
         fieldData: null,
+        resourceSummary: normaliseResourceSummary(audits),
+        domSize: normaliseDomSize(audits),
         opportunities: normaliseOpportunities(audits),
         auditRefs: normaliseAuditRefs(categories, audits),
         userTimings: normaliseUserTimings(audits)

@@ -39,6 +39,18 @@ describe('buildSeedData', () => {
             displayValue: null,
             category: 'performance'
         });
+        expect(latestHomepageMobileReport?.insights?.resourceSummary?.items[0]).toEqual({
+            resourceType: 'total',
+            label: 'Total',
+            requestCount: 24,
+            transferSize: 1837056
+        });
+        expect(latestHomepageMobileReport?.insights?.domSize).toEqual({
+            totalElements: 932,
+            maxDepth: 17,
+            maxChildElements: 42,
+            displayValue: '932 elements'
+        });
         expect(latestHomepageMobileReport?.insights?.auditRefs?.[0]).toMatchObject({
             id: 'tap-targets',
             severity: 'fail'

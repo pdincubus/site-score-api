@@ -1,4 +1,11 @@
 import type { PageSpeedStrategy } from './report-insights.js';
+import type { ReportInsightResourceSummaryItem } from './report-insights.js';
+
+type ReportTrendTechnicalMetrics = {
+    pageWeightBytes: number | null;
+    domNodes: number | null;
+    resources: ReportInsightResourceSummaryItem[];
+};
 
 type ReportTrendPoint = {
     id: string;
@@ -10,6 +17,7 @@ type ReportTrendPoint = {
     seoScore: number;
     bestPracticesScore: number;
     agenticBrowsingScore: number;
+    technicalMetrics?: ReportTrendTechnicalMetrics;
 };
 
 type ReportGroupTrend = {
@@ -20,4 +28,4 @@ type ReportGroupTrend = {
     points: ReportTrendPoint[];
 };
 
-export type { ReportGroupTrend, ReportTrendPoint };
+export type { ReportGroupTrend, ReportTrendPoint, ReportTrendTechnicalMetrics };

@@ -19,6 +19,35 @@ type ReportInsightMetric = {
     category?: string | null;
 };
 
+type ReportInsightResourceType =
+    | 'total'
+    | 'document'
+    | 'stylesheet'
+    | 'script'
+    | 'image'
+    | 'media'
+    | 'font'
+    | 'other'
+    | 'third-party';
+
+type ReportInsightResourceSummaryItem = {
+    resourceType: ReportInsightResourceType;
+    label: string;
+    requestCount: number;
+    transferSize: number;
+};
+
+type ReportInsightResourceSummary = {
+    items: ReportInsightResourceSummaryItem[];
+};
+
+type ReportInsightDomSize = {
+    totalElements: number | null;
+    maxDepth: number | null;
+    maxChildElements: number | null;
+    displayValue: string | null;
+};
+
 type ReportInsightOpportunity = {
     id: string;
     title: string;
@@ -66,6 +95,8 @@ type ReportInsights = {
         overallCategory: string | null;
         metrics: Partial<Record<ReportInsightMetricName, ReportInsightMetric>>;
     } | null;
+    resourceSummary?: ReportInsightResourceSummary | null;
+    domSize?: ReportInsightDomSize | null;
     opportunities: ReportInsightOpportunity[];
     auditRefs?: ReportInsightAuditRef[];
     userTimings?: ReportInsightUserTiming[];
@@ -75,9 +106,13 @@ export type {
     PageSpeedStrategy,
     ReportInsightAuditRef,
     ReportInsightAuditSeverity,
+    ReportInsightDomSize,
     ReportInsightMetric,
     ReportInsightMetricName,
     ReportInsightOpportunity,
+    ReportInsightResourceSummary,
+    ReportInsightResourceSummaryItem,
+    ReportInsightResourceType,
     ReportInsightUserTiming,
     ReportInsights,
     ReportInsightsSource
