@@ -106,6 +106,16 @@ bruno/
 - `sql/migrations` contains ordered SQL migration files
 - `bruno` contains a manual API testing collection for local and live environments
 
+## Runtime
+
+Use Node.js 24 and the pnpm version pinned in `package.json`. The `.node-version` file selects the Node 24 major line, and `engines.node` limits supported versions to `24.x`. Node 24 minor and patch updates remain available without moving to a different major version.
+
+### Render
+
+Render reads `.node-version` from the repository root. Before merging a runtime change, check the API service's **Environment** settings: an existing `NODE_VERSION` variable takes precedence over this file. Remove that override or set it to `24` so the deployment follows the same major line. If a change is needed, select **Save only** to avoid deploying before the PR is merged. Deploy the merged PR through the normal Render workflow.
+
+After deployment, confirm the successful build log reports Node 24 and check the API status, documentation and login flow. See [Render's Node.js version documentation](https://render.com/docs/node-version) for the selection order.
+
 ## Environment variables
 
 Create a `.env` file in the project root.
